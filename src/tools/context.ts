@@ -1,12 +1,12 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { Brand } from "../brand.js";
 import type { VictorClient } from "../victor/client.js";
 import type { SessionStore } from "../session.js";
 
 export interface ToolContext {
   client: VictorClient;
   sessions: SessionStore;
-  /** Page where users paste a VW Code into the real configurator. */
-  loadCodeUrl: string;
+  brand: Brand;
 }
 
 export function json(data: unknown): CallToolResult {

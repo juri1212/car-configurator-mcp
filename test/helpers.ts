@@ -1,7 +1,9 @@
 import { readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { type Brand, resolveBrand } from "../src/brand.js";
 import { createServer } from "../src/index.js";
+import { SessionStore } from "../src/session.js";
 import { VictorClient } from "../src/victor/client.js";
 import type { ConfigResponse, ModelsOverview, StoredConfigurationResponse } from "../src/victor/types.js";
 
@@ -14,6 +16,8 @@ export const poloStart = () => fixture<ConfigResponse>("polo-start");
 export const poloStepIqDrive = () => fixture<ConfigResponse>("polo-step-iqdrive");
 export const poloImportStep = () => fixture<ConfigResponse>("polo-import-step");
 export const id4Start = () => fixture<ConfigResponse>("id4-start");
+/** ID. Buzz Pure from the commercial vehicles tenant: net + gross prices. */
+export const idBuzzStart = () => fixture<ConfigResponse>("idbuzz-start");
 export const loadVLCQNLFL = () => fixture<StoredConfigurationResponse>("load-VLCQNLFL");
 
 export interface RecordedCall {
@@ -61,14 +65,14 @@ export function fakeFetch(calls: RecordedCall[] = []) {
   return fn as typeof fetch;
 }
 
-export async function connectTestServer(calls: RecordedCall[] = []) {
+export async function connectTestServer(calls: RecordedCall[] = [], brand: Brand = resolveBrand({})) {
   const victor = new VictorClient({
     apiKey: "test-key",
     tenant: "ihdcc-vw-de-de",
     fetch: fakeFetch(calls),
     minRequestGapMs: 0,
   });
-  const server = createServer(victor);
+  const server = createServer(victor, new SessionStore(), brand);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);

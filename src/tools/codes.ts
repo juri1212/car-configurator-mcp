@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { describeCandidate, effectiveConfiguration, summarise } from "../configuration.js";
+import { describeCandidate, effectiveConfiguration, summarise, totalPrice } from "../configuration.js";
 import { handle, type ToolContext } from "./context.js";
 
 export function normaliseCode(code: string): string {
@@ -10,14 +10,14 @@ export function normaliseCode(code: string): string {
 }
 
 export function registerCodeTools(server: McpServer, ctx: ToolContext) {
-  const { client, sessions } = ctx;
+  const { client, sessions, brand } = ctx;
 
   server.registerTool(
     "export_code",
     {
       title: "Export VW Code",
       description:
-        "Save a configuration with Volkswagen and get a VW Code. The user can enter the code on volkswagen.de (\"Konfiguration laden\") to open exactly this car in the official configurator.",
+        `Save a configuration with ${brand.name} and get a VW Code. The user can enter the code on ${brand.host} ("Konfiguration laden") to open exactly this car in the official configurator.`,
       inputSchema: { config_id: z.string().describe("Configuration to export") },
       annotations: { openWorldHint: true },
     },
@@ -31,9 +31,9 @@ export function registerCodeTools(server: McpServer, ctx: ToolContext) {
         config_id: s.id,
         vw_code: code,
         expires: stored.expires,
-        load_at: ctx.loadCodeUrl,
+        load_at: brand.loadCodeUrl,
         model: (s.vehicleConfiguration.modelLongName ?? s.vehicleConfiguration.modelName)?.trim(),
-        total_price: s.vehicleConfiguration.configurationPrice?.total?.[0]?.price ?? null,
+        total_price: totalPrice(s.vehicleConfiguration),
       };
     }),
   );
@@ -43,7 +43,7 @@ export function registerCodeTools(server: McpServer, ctx: ToolContext) {
     {
       title: "Import VW Code",
       description:
-        "Load a VW Code (from volkswagen.de or export_code) into a new configuration that can be inspected and changed. If the stored car can no longer be built as-is, the backend adjusts it and the changes are reported.",
+        `Load a VW Code (from ${brand.host} or export_code) into a new configuration that can be inspected and changed. If the stored car can no longer be built as-is, the backend adjusts it and the changes are reported.`,
       inputSchema: {
         code: z.string().describe("VW Code, e.g. VC6NTLKS"),
         label: z.string().optional(),
