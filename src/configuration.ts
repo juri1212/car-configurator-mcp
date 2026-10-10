@@ -27,8 +27,19 @@ export const ALL_CATEGORIES = [
   "standardEquipment",
 ] as const satisfies readonly CategoryKey[];
 
-export function firstPrice(prices: Price[] | null | undefined): number | null {
-  return prices?.[0]?.price ?? null;
+/**
+ * Price incl. VAT. The car tenant sends a single gross price; the commercial
+ * tenant sends the net price first, then a "Gross" and a "Gross Delta" entry.
+ */
+export function grossPrice(prices: Price[] | null | undefined): number | null {
+  const p = prices?.find((p) => p.vatIncluded) ?? prices?.find((p) => p.type === "Gross") ?? prices?.[0];
+  return p?.price ?? null;
+}
+
+/** Price excl. VAT, if the backend sends one (commercial vehicles only). */
+export function netPrice(prices: Price[] | null | undefined): number | null {
+  const p = prices?.find((p) => p.type === "price" && p.vatIncluded === false);
+  return p?.price ?? null;
 }
 
 /** The configuration the backend settled on (after resolving conflicts, if any). */
@@ -62,7 +73,7 @@ export function includedCodes(catalogue: VehicleCatalogue): Set<string> {
 }
 
 export function totalPrice(vc: VehicleConfiguration): number | null {
-  return firstPrice(vc.configurationPrice?.total);
+  return grossPrice(vc.configurationPrice?.total);
 }
 
 export interface OptionView {
@@ -90,7 +101,7 @@ export function optionView(
   const view: OptionView = {
     code: feature.code,
     name: feature.name ?? feature.code,
-    price: firstPrice(feature.prices),
+    price: grossPrice(feature.prices),
     category: placement?.category,
     group: placement?.group,
     selected: feature.isIncluded,
@@ -135,7 +146,7 @@ export function listOptions(
         if (search && !`${f.name ?? ""} ${f.code} ${group.name}`.toLowerCase().includes(search)) continue;
         if (filter.onlySelectable && (f.isIncluded || f.isStandard)) continue;
         if (filter.maxTotalPrice !== undefined && currentTotal !== null && !f.isIncluded) {
-          const price = firstPrice(f.prices) ?? 0;
+          const price = grossPrice(f.prices) ?? 0;
           if (currentTotal + price > filter.maxTotalPrice) continue;
         }
         result.push(optionView(f, features, { category, group: group.name }));
@@ -215,7 +226,7 @@ export function diffConfigurations(
     add.map((c) => afterPlacement.get(c)?.category).filter((c) => c && pickOne.has(c)),
   );
   const isReplaced = (c: string) => swappedCategories.has(beforePlacement.get(c)?.category);
-  const changed = (f: Feature): ChangedOption => ({ code: f.code, name: f.name ?? f.code, price: firstPrice(f.prices) });
+  const changed = (f: Feature): ChangedOption => ({ code: f.code, name: f.name ?? f.code, price: grossPrice(f.prices) });
 
   const priceBefore = totalPrice(beforeVc);
   const priceAfter = totalPrice(afterVc);
@@ -240,7 +251,7 @@ export function diffConfigurations(
     conflict_resolved: !!after.validationData?.conflicted,
     price_before: priceBefore,
     price_after: priceAfter,
-    price_change: priceBefore !== null && priceAfter !== null ? priceAfter - priceBefore : null,
+    price_change: priceBefore !== null && priceAfter !== null ? Math.round((priceAfter - priceBefore) * 100) / 100 : null,
   };
 }
 
@@ -249,7 +260,7 @@ export function describeCandidate(c: SolutionCandidate) {
   return {
     add: (c.addedFeatures ?? []).map((f) => `${f.code} ${f.name ?? ""}`.trim()),
     remove: (c.removedFeatures ?? []).map((f) => `${f.code} ${f.name ?? ""}`.trim()),
-    total: firstPrice(c.prices),
+    total: grossPrice(c.prices),
   };
 }
 
@@ -316,7 +327,7 @@ export function summarise(vc: VehicleConfiguration, catalogue: VehicleCatalogue,
     });
 
   const colour = (f?: Feature) =>
-    f ? { code: f.code, name: f.name, price: firstPrice(features.get(f.code)?.prices ?? f.prices) } : null;
+    f ? { code: f.code, name: f.name, price: grossPrice(features.get(f.code)?.prices ?? f.prices) } : null;
 
   return {
     model: {
@@ -333,11 +344,12 @@ export function summarise(vc: VehicleConfiguration, catalogue: VehicleCatalogue,
     prices: {
       currency: "EUR",
       vat_included: true,
-      base: firstPrice(p.model),
-      colour: firstPrice(p.color),
-      options: firstPrice(p.equipment),
-      incentives: firstPrice(p.incentives),
-      total: firstPrice(p.total),
+      base: grossPrice(p.model),
+      colour: grossPrice(p.color),
+      options: grossPrice(p.equipment),
+      incentives: grossPrice(p.incentives),
+      total: grossPrice(p.total),
+      ...(netPrice(p.total) !== null ? { net_total: netPrice(p.total) } : {}),
     },
     efficiency: efficiency(vc),
     ...(opts.technical ? { technical_data: simplifyTechnicalData(vc) } : {}),

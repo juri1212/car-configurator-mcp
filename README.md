@@ -7,6 +7,11 @@ and technical data, compare configurations, and export a **VW Code** you can
 open in the real configurator under
 [Konfiguration laden](https://www.volkswagen.de/de/modelle/konfiguration-laden.html).
 
+It also works with the
+[Volkswagen Nutzfahrzeuge configurator](https://www.volkswagen-nutzfahrzeuge.de/de.html)
+(ID. Buzz, Multivan, California, Transporter, Caddy, Crafter, Amarok); see
+[Commercial vehicles](#commercial-vehicles).
+
 > Unofficial. This server uses the same undocumented backend as the website. It
 > can break when VW changes it. Intended for personal, low-volume use.
 
@@ -74,18 +79,34 @@ VW Codes are valid for about six months.
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `VW_SITE` | `https://www.volkswagen.de/de` | Market site, used to discover API key and tenant |
+| `VW_BRAND` | `vw` | `vw` for cars (volkswagen.de), `vwn` for commercial vehicles (volkswagen-nutzfahrzeuge.de) |
+| `VW_SITE` | the brand's site | Market site, used to discover API key and tenant |
 | `VW_API_KEY` | discovered | Override the OneAPI key |
-| `VW_TENANT` | discovered (`ihdcc-vw-de-de`) | Override the tenant |
+| `VW_TENANT` | discovered (`ihdcc-vw-de-de`); `ihdcc-vwn-de-de` for `vwn` | Override the tenant |
 | `VW_LOAD_CODE_URL` | `<VW_SITE>/modelle/konfiguration-laden.html` | Link returned by `export_code` |
 
 Only the German market has been tested.
+
+### Commercial vehicles
+
+Set `VW_BRAND=vwn` to configure the Volkswagen Nutzfahrzeuge range. One server
+covers one brand, so register a second server if you want both:
+
+```sh
+claude mcp add vw-nutzfahrzeuge -e VW_BRAND=vwn -- node /absolute/path/to/vw-cc-mcp/dist/index.js
+```
+
+Prices are reported incl. VAT, like for cars. Summaries also include
+`net_total` (excl. VAT), which is what business customers usually look at.
+VW Codes open under
+[Konfiguration laden](https://www.volkswagen-nutzfahrzeuge.de/de/modelle/konfiguration-laden.html)
+on the Nutzfahrzeuge site.
 
 ## Development
 
 ```sh
 npm test                           # unit + MCP tests against recorded fixtures
-npm run build && npm run test:live # end-to-end against the real backend (creates one VW Code)
+npm run build && npm run test:live # end-to-end against the real backend (creates two VW Codes)
 ```
 
 Backend notes are in [SPEC.md](SPEC.md).

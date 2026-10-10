@@ -194,7 +194,7 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
     {
       title: "Configuration summary",
       description:
-        "Full summary of a configuration: model, paint, interior, selected options, price breakdown (EUR incl. VAT), WLTP/efficiency figures, and optionally technical data (dimensions, performance, battery/charging).",
+        "Full summary of a configuration: model, paint, interior, selected options, price breakdown (EUR incl. VAT; net_total excl. VAT where the backend has it), WLTP/efficiency figures, and optionally technical data (dimensions, performance, battery/charging).",
       inputSchema: {
         config_id: configId,
         technical_data: z.boolean().optional().describe("Include technical data (default true)"),
