@@ -41,15 +41,15 @@ export interface Brand {
   /** Site host for user-facing text, e.g. www.volkswagen.de */
   host: string;
   tenant?: string;
-  /** Page where users paste a VW Code into the real configurator. */
-  loadCodeUrl: string;
+  /** The official configurator page; export_code links into it. */
+  configuratorUrl: string;
 }
 
 type Env = Record<string, string | undefined>;
 
 /**
- * Settings for one brand. `VW_SITE`, `VW_TENANT` and `VW_LOAD_CODE_URL`
- * override the car brand, `VWN_SITE`, `VWN_TENANT` and `VWN_LOAD_CODE_URL`
+ * Settings for one brand. `VW_SITE`, `VW_TENANT` and `VW_CONFIGURATOR_URL`
+ * override the car brand, `VWN_SITE`, `VWN_TENANT` and `VWN_CONFIGURATOR_URL`
  * the commercial one.
  */
 export function resolveBrand(key: BrandKey = "vw", env: Env = process.env): Brand {
@@ -63,7 +63,7 @@ export function resolveBrand(key: BrandKey = "vw", env: Env = process.env): Bran
     site,
     host: new URL(site).host,
     tenant: setting("TENANT") ?? profile.tenant,
-    loadCodeUrl: setting("LOAD_CODE_URL") ?? `${site}/modelle/konfiguration-laden.html`,
+    configuratorUrl: setting("CONFIGURATOR_URL") ?? `${site}/konfigurator.html`,
   };
 }
 

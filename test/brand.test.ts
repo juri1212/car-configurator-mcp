@@ -9,7 +9,7 @@ describe("brand", () => {
       site: "https://www.volkswagen.de/de",
       host: "www.volkswagen.de",
       tenant: undefined,
-      loadCodeUrl: "https://www.volkswagen.de/de/modelle/konfiguration-laden.html",
+      configuratorUrl: "https://www.volkswagen.de/de/konfigurator.html",
     });
   });
 
@@ -19,7 +19,7 @@ describe("brand", () => {
       name: "Volkswagen Nutzfahrzeuge",
       host: "www.volkswagen-nutzfahrzeuge.de",
       tenant: "ihdcc-vwn-de-de",
-      loadCodeUrl: "https://www.volkswagen-nutzfahrzeuge.de/de/modelle/konfiguration-laden.html",
+      configuratorUrl: "https://www.volkswagen-nutzfahrzeuge.de/de/konfigurator.html",
     });
   });
 
@@ -27,10 +27,10 @@ describe("brand", () => {
     const env = {
       VW_SITE: "https://example.test/at/",
       VW_TENANT: "t",
-      VW_LOAD_CODE_URL: "u",
+      VW_CONFIGURATOR_URL: "u",
       VWN_TENANT: "tn",
     };
-    expect(resolveBrand("vw", env)).toMatchObject({ site: "https://example.test/at", tenant: "t", loadCodeUrl: "u" });
+    expect(resolveBrand("vw", env)).toMatchObject({ site: "https://example.test/at", tenant: "t", configuratorUrl: "u" });
     expect(resolveBrand("vwn", env)).toMatchObject({ host: "www.volkswagen-nutzfahrzeuge.de", tenant: "tn" });
   });
 

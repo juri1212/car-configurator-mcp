@@ -12,8 +12,8 @@ export interface Session {
   catalogue: VehicleCatalogue;
   createdAt: Date;
   updatedAt: Date;
-  /** Last exported VW Code, if any. */
-  code?: { value: string; exportedAt: Date };
+  /** Last exported VW Code and its configurator link, if any. */
+  code?: { value: string; url: string; exportedAt: Date };
   importedFrom?: string;
 }
 
@@ -82,6 +82,7 @@ export class SessionStore {
       label: s.label,
       model: (s.vehicleConfiguration.modelLongName ?? s.vehicleConfiguration.modelName)?.trim(),
       total_price: totalPrice(s.vehicleConfiguration),
+      configurator_url: s.code?.url ?? null,
       vw_code: s.code?.value ?? null,
       imported_from: s.importedFrom ?? null,
       updated_at: s.updatedAt.toISOString(),
