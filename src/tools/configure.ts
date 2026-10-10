@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { resolveCarline, resolveStart } from "../catalog.js";
+import { resolveStart } from "../catalog.js";
 import {
   ALL_CATEGORIES,
   describeCandidate,
@@ -17,7 +17,8 @@ import {
 import type { Session } from "../session.js";
 import type { ConfigResponse, Feature, VehicleCatalogue } from "../victor/types.js";
 import { VictorError } from "../victor/client.js";
-import { handle, type ToolContext } from "./context.js";
+import { findCarline } from "./catalog.js";
+import { backendFor, brandArg, handle, type ToolContext } from "./context.js";
 
 const configId = z.string().describe("Configuration id from start_configuration or import_code");
 const category = z.enum(ALL_CATEGORIES);
@@ -36,7 +37,7 @@ export function resolveCode(catalogue: VehicleCatalogue, code: string): Feature 
 }
 
 export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
-  const { client, sessions } = ctx;
+  const { sessions } = ctx;
 
   server.registerTool(
     "start_configuration",
@@ -46,17 +47,17 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
         "Start a new configuration from a trim's base configuration (optionally a specific engine via model_code from list_variants). Returns a config_id and a summary.",
       inputSchema: {
         carline: z.string().describe('Carline key or name, e.g. "Golf"'),
+        brand: brandArg(ctx),
         trim: z.string().describe('Trim name, e.g. "Style" or "GTI"'),
         model_code: z.string().optional().describe("Engine/gearbox variant from list_variants; default is the cheapest"),
         label: z.string().optional().describe("Your own name for this configuration"),
       },
       annotations: { openWorldHint: true },
     },
-    handle(async ({ carline, trim, model_code, label }) => {
-      const overview = await client.modelsOverview();
-      const c = resolveCarline(overview, carline);
+    handle(async ({ carline, brand, trim, model_code, label }) => {
+      const { backend, overview, carline: c } = await findCarline(ctx, carline, brand);
       const { trim: t, engine } = resolveStart(overview, c, trim, model_code);
-      const res = await client.configStart({
+      const res = await backend.client.configStart({
         carlineKey: c.key,
         salesgroupKey: t.salesgroup,
         trimName: t.name,
@@ -64,8 +65,13 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
         modelYear: engine?.model_year,
       });
       const vc = effectiveConfiguration(res);
-      const session = sessions.create(vc, res.vehicleCatalogue, label);
-      return { config_id: session.id, label: session.label, ...summarise(vc, res.vehicleCatalogue) };
+      const session = sessions.create(backend.brand.key, vc, res.vehicleCatalogue, label);
+      return {
+        config_id: session.id,
+        brand: session.brand,
+        label: session.label,
+        ...summarise(vc, res.vehicleCatalogue),
+      };
     }),
   );
 
@@ -133,6 +139,7 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
     },
     handle(async ({ config_id, add = [], remove = [], dry_run = false }) => {
       const s = sessions.get(config_id);
+      const { client } = backendFor(ctx, s.brand);
       if (!add.length && !remove.length) throw new Error("Nothing to change: pass add and/or remove");
 
       const selected = includedCodes(s.catalogue);
@@ -205,6 +212,7 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
       const s: Session = sessions.get(config_id);
       return {
         config_id: s.id,
+        brand: s.brand,
         label: s.label,
         vw_code: s.code?.value ?? null,
         ...summarise(s.vehicleConfiguration, s.catalogue, { technical: technical_data }),

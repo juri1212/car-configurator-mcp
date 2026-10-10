@@ -78,20 +78,13 @@ describe.skipIf(!live)("live (Volkswagen Nutzfahrzeuge)", () => {
 
   beforeAll(async () => {
     client = new Client({ name: "live-test", version: "0" });
-    await client.connect(
-      new StdioClientTransport({
-        command: "node",
-        args: ["dist/index.js"],
-        env: { ...(process.env as Record<string, string>), VW_BRAND: "vwn" },
-        stderr: "inherit",
-      }),
-    );
+    await client.connect(new StdioClientTransport({ command: "node", args: ["dist/index.js"], stderr: "inherit" }));
   });
   afterAll(() => client?.close());
 
   it("configures an ID. Buzz with gross and net prices and exports a code", { timeout: 120_000 }, async () => {
     const models = await call("list_models", { query: "buzz" });
-    expect(models.map((m: { name: string }) => m.name)).toContain("Der ID. Buzz");
+    expect(models).toContainEqual(expect.objectContaining({ name: "Der ID. Buzz", brand: "vwn" }));
 
     const variants = await call("list_variants", { carline: "ID. Buzz" });
     const cfg = await call("start_configuration", { carline: "ID. Buzz", trim: variants.trims[0].name });
@@ -105,5 +98,9 @@ describe.skipIf(!live)("live (Volkswagen Nutzfahrzeuge)", () => {
     const exported = await call("export_code", { config_id: cfg.config_id });
     expect(exported.load_at).toContain("volkswagen-nutzfahrzeuge.de");
     console.log(`VW Code: ${exported.vw_code} (${exported.model}, ${exported.total_price} €)`);
+
+    const imported = await call("import_code", { code: exported.vw_code });
+    expect(imported.brand).toBe("vwn");
+    expect(imported.prices.total).toBe(change.price_after);
   });
 });
