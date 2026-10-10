@@ -224,7 +224,7 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
     "list_configurations",
     {
       title: "List configurations",
-      description: "List all configurations in this session with model, total price and VW Code (if exported).",
+      description: "List all configurations in this session with model, total price and configurator link / VW Code (if exported).",
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },

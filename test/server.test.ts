@@ -54,11 +54,14 @@ describe("MCP server", () => {
     expect(summary.technical_data).toBeDefined();
 
     const exported = await call("export_code", { config_id: id });
-    expect(exported).toMatchObject({ vw_code: "VTEST123", load_at: expect.stringContaining("konfiguration-laden") });
+    expect(exported).toMatchObject({ vw_code: "VTEST123" });
+    expect(exported.configurator_url).toBe(
+      "https://www.volkswagen.de/de/konfigurator.html/__app/route:configure.app?buildabilityStatus-app=buildable&tenant-app=private&carlineId-app=30204&salesGroupId-app=37057&trimName-app=EDITION+50&modelId-app=AE14AV%24MAAUE50%24GWS3WS3%24GYOSYOS&modelVersion-app=0&modelYear-app=2027&exteriorId-app=F14+6U6U&interiorId-app=F56+++++FJ&options-app=GPF3PF3&category-app=private",
+    );
     expect(exported.expires).toBeTruthy();
 
     const list = await call("list_configurations");
-    expect(list[0]).toMatchObject({ config_id: id, vw_code: "VTEST123", total_price: 29930 });
+    expect(list[0]).toMatchObject({ config_id: id, vw_code: "VTEST123", configurator_url: exported.configurator_url, total_price: 29930 });
   });
 
   it("does not save anything when a step fails", async () => {
@@ -108,9 +111,9 @@ describe("MCP server", () => {
 
     calls.length = 0;
     const exported = await call("export_code", { config_id: buzz.config_id });
-    expect(exported).toMatchObject({ brand: "vwn", load_at: expect.stringContaining("volkswagen-nutzfahrzeuge.de") });
+    expect(exported).toMatchObject({ brand: "vwn", configurator_url: expect.stringContaining("volkswagen-nutzfahrzeuge.de/de/konfigurator.html/__app/") });
     expect(calls.find((c) => c.path === "/vcso/storeConfiguration")!.query.get("tenant")).toBe("ihdcc-vwn-de-de");
-    expect((await call("export_code", { config_id: polo.config_id })).load_at).toContain("www.volkswagen.de");
+    expect((await call("export_code", { config_id: polo.config_id })).configurator_url).toContain("www.volkswagen.de/de/konfigurator.html/__app/");
 
     const list = await call("list_configurations");
     expect(list.map((c: { brand: string }) => c.brand).sort()).toEqual(["vw", "vwn"]);

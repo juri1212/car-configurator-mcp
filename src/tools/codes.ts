@@ -27,6 +27,40 @@ async function loadCode(ctx: ToolContext, code: string): Promise<{ backend: Back
   return { backend: ctx.backends[0], stored };
 }
 
+/**
+ * Deep link that opens a stored configuration in the official configurator,
+ * built the same way the site's "Konfiguration laden" page does after
+ * resolving a VW Code.
+ */
+export function configuratorLink(configuratorUrl: string, code: string, stored: StoredConfigurationResponse): string {
+  const sc = stored.storedConfiguration;
+  const trim = [stored.consolidatedConfiguration, sc]
+    .flatMap((vc) => vc?.modelFilters ?? [])
+    .find((f) => f.type === "EquipmentLine")?.text;
+  if (!trim) throw new Error(`VW Code ${code} has no trim (EquipmentLine) to link to`);
+  // The site decides this from the code too: V... codes are private customers.
+  const tenant = code.startsWith("V") ? "private" : "commercial";
+  const params: Record<string, string> = {
+    buildabilityStatus: "buildable",
+    tenant,
+    carlineId: sc.carlineKey,
+    salesGroupId: sc.salesgroupKey,
+    trimName: trim,
+    modelId: sc.modelKey,
+    modelVersion: sc.modelVersion,
+    modelYear: sc.modelYear,
+    exteriorId: sc.exterior?.code ?? "",
+    interiorId: sc.interior?.code ?? "",
+    // List items are joined with "-", so dashes inside codes are pre-escaped.
+    options: (sc.features ?? []).map((f) => f.code.replace(/-/g, "%2D")).join("-"),
+    category: tenant,
+  };
+  const search = new URLSearchParams();
+  // Feature Hub scopes each query parameter to the configurator app with "-app".
+  for (const [key, value] of Object.entries(params)) if (value) search.set(`${key}-app`, value);
+  return `${configuratorUrl}/__app/route:configure.app?${search}`;
+}
+
 export function registerCodeTools(server: McpServer, ctx: ToolContext) {
   const { sessions } = ctx;
 
@@ -35,7 +69,7 @@ export function registerCodeTools(server: McpServer, ctx: ToolContext) {
     {
       title: "Export VW Code",
       description:
-        `Save a configuration with Volkswagen and get a VW Code. The user can enter the code on the brand's site (${hosts(ctx)}, "Konfiguration laden"; see load_at) to open exactly this vehicle in the official configurator.`,
+        `Save a configuration with Volkswagen and get a link that opens exactly this vehicle in the official configurator on the brand's site (${hosts(ctx)}). Give the user the link. The VW Code is the same configuration in short form (it can be re-imported with import_code).`,
       inputSchema: { config_id: z.string().describe("Configuration to export") },
       annotations: { openWorldHint: true },
     },
@@ -45,13 +79,14 @@ export function registerCodeTools(server: McpServer, ctx: ToolContext) {
       const code = await client.storeConfiguration(s.vehicleConfiguration);
       // Load it back: confirms the code works and tells us when it expires.
       const stored = await client.loadConfiguration(code);
-      s.code = { value: code, exportedAt: new Date() };
+      const url = configuratorLink(brand.configuratorUrl, code, stored);
+      s.code = { value: code, url, exportedAt: new Date() };
       return {
         config_id: s.id,
         brand: brand.key,
+        configurator_url: url,
         vw_code: code,
         expires: stored.expires,
-        load_at: brand.loadCodeUrl,
         model: (s.vehicleConfiguration.modelLongName ?? s.vehicleConfiguration.modelName)?.trim(),
         total_price: totalPrice(s.vehicleConfiguration),
       };

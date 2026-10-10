@@ -85,7 +85,7 @@ All configuration tools work on a server-side session identified by `config_id`.
 | `get_option` | `config_id`, `code` | Details, which packages contain it, what it includes |
 | `change_options` | `config_id`, `add[]`, `remove[]`, `dry_run?` | Diff: `applied`, `not_applied`, `side_effects` {`added`, `removed`, `replaced`, `standard_replaced`, `standard_restored`}, price before/after/change. With `dry_run` nothing is saved |
 | `get_summary` | `config_id` | Model, colours, selected options, price breakdown, tech data, WLTP/efficiency |
-| `export_code` | `config_id` | VW Code, expiry, link to `https://www.volkswagen.de/de/modelle/konfiguration-laden.html` |
+| `export_code` | `config_id` | `configurator_url` (deep link `<site>/konfigurator.html/__app/route:configure.app?…`, the same one the site builds after loading a code), VW Code, expiry |
 | `import_code` | `code` | New `config_id` rebuilt from the stored configuration |
 | `compare_configurations` | `config_ids[]` | Side-by-side: price, power, consumption/range, option differences |
 | `list_configurations` | – | Sessions in memory |
