@@ -33,7 +33,7 @@ export function createServer(backends: Backend[], sessions = new SessionStore())
         (commercial
           ? "Commercial vehicle summaries also give net_total excl. VAT, which business customers usually go by. "
           : "") +
-        `The VW Code from export_code opens the same configuration on the brand's site ("Konfiguration laden", see load_at).`,
+        "export_code returns a link (configurator_url) that opens the same configuration in the brand's configurator; give the user that link.",
     },
   );
   registerCatalogTools(server, ctx);

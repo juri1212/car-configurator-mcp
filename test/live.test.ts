@@ -96,8 +96,8 @@ describe.skipIf(!live)("live (Volkswagen Nutzfahrzeuge)", () => {
     expect(change.price_change).toBeCloseTo(paint.price, 2);
 
     const exported = await call("export_code", { config_id: cfg.config_id });
-    expect(exported.load_at).toContain("volkswagen-nutzfahrzeuge.de");
-    console.log(`VW Code: ${exported.vw_code} (${exported.model}, ${exported.total_price} €)`);
+    expect(exported.configurator_url).toMatch(/^https:\/\/www\.volkswagen-nutzfahrzeuge\.de\/de\/konfigurator\.html\/__app\//);
+    console.log(`VW Code: ${exported.vw_code} (${exported.model}, ${exported.total_price} €)\n${exported.configurator_url}`);
 
     const imported = await call("import_code", { code: exported.vw_code });
     expect(imported.brand).toBe("vwn");

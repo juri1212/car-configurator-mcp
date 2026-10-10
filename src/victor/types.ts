@@ -163,6 +163,8 @@ export interface ModelsOverview {
 
 export interface StoredConfigurationResponse {
   storedConfiguration: VehicleConfiguration;
+  /** The stored configuration resolved against the current catalogue; carries the trim in modelFilters. */
+  consolidatedConfiguration?: VehicleConfiguration;
   expires: string;
   creationTime: string;
 }
