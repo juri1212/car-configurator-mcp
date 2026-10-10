@@ -38,6 +38,7 @@ export function compare(list: Session[]) {
         prices: sum.prices,
         efficiency: sum.efficiency,
         options_only_here: sum.options.filter((o) => !commonCodes.has(o.code)),
+        configurator_url: s.code?.url ?? null,
         vw_code: s.code?.value ?? null,
       };
     }),

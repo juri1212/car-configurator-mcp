@@ -3,9 +3,8 @@
 An MCP server that lets an AI agent spec a Volkswagen using the
 [volkswagen.de configurator](https://www.volkswagen.de/de/konfigurator.html):
 browse models, trims and engines, add paint/wheels/packages, see prices, WLTP
-and technical data, compare configurations, and export a **VW Code** you can
-open in the real configurator under
-[Konfiguration laden](https://www.volkswagen.de/de/modelle/konfiguration-laden.html).
+and technical data, compare configurations, and export a **link** that opens
+the car in the real configurator (along with its **VW Code**).
 
 The same server also covers the
 [Volkswagen Nutzfahrzeuge configurator](https://www.volkswagen-nutzfahrzeuge.de/de.html)
@@ -54,13 +53,13 @@ claude mcp add vw-configurator -- node /absolute/path/to/vw-cc-mcp/dist/index.js
 | `get_option` | Details of one option, package contents |
 | `change_options` | Add/remove options; reports what the backend changed on its own; `dry_run` previews |
 | `get_summary` | Model, colours, options, price breakdown, efficiency/WLTP, technical data |
-| `export_code` | Save with VW and get a VW Code |
+| `export_code` | Save with VW and get a link that opens the car in the official configurator (plus its VW Code) |
 | `import_code` | Load a VW Code into an editable configuration |
 | `compare_configurations` | Side-by-side comparison of two or more configurations |
 | `list_configurations` | Configurations in the current session |
 
 Example prompt: *"Configure a Golf GTI in a metallic paint with 19-inch wheels
-and IQ.DRIVE, stay under 52,000 €, and give me the VW Code."*
+and IQ.DRIVE, stay under 52,000 €, and give me a link to it."*
 
 ### How changes are reported
 
@@ -72,8 +71,9 @@ and IQ.DRIVE, stay under 52,000 €, and give me the VW Code."*
 - `standard_replaced` / `standard_restored`: standard parts swapped for the
   versions included with a package or wheel option. Nothing is lost.
 
-Configurations live in memory while the server runs. Export a VW Code to keep one.
-VW Codes are valid for about six months.
+Configurations live in memory while the server runs. Export one to keep it.
+VW Codes are valid for about six months; links carry the configuration itself
+and work as long as VW still offers that model.
 
 ## Configuration
 
@@ -83,7 +83,7 @@ VW Codes are valid for about six months.
 | `VW_API_KEY` | discovered | Override the OneAPI key (both brands) |
 | `VW_SITE` / `VWN_SITE` | the brand's site | Market site, used to discover API key and tenant |
 | `VW_TENANT` / `VWN_TENANT` | discovered (`ihdcc-vw-de-de`) / `ihdcc-vwn-de-de` | Override the tenant |
-| `VW_LOAD_CODE_URL` / `VWN_LOAD_CODE_URL` | `<site>/modelle/konfiguration-laden.html` | Link returned by `export_code` |
+| `VW_CONFIGURATOR_URL` / `VWN_CONFIGURATOR_URL` | `<site>/konfigurator.html` | Configurator page that `export_code` links into |
 
 `VW_*` settings apply to cars, `VWN_*` to commercial vehicles.
 
@@ -98,9 +98,7 @@ brand, and `import_code` detects it from the code.
 
 Prices are reported incl. VAT, like for cars. Summaries also include
 `net_total` (excl. VAT), which is what business customers usually look at.
-VW Codes open under
-[Konfiguration laden](https://www.volkswagen-nutzfahrzeuge.de/de/modelle/konfiguration-laden.html)
-on the Nutzfahrzeuge site.
+Links from `export_code` open the configurator on the Nutzfahrzeuge site.
 
 ## Development
 
