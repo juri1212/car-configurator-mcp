@@ -1,5 +1,5 @@
 import type { ModelsOverview, OverviewCarline, OverviewModel } from "./victor/types.js";
-import { firstPrice } from "./configuration.js";
+import { grossPrice } from "./configuration.js";
 
 export interface Engine {
   model_code: string;
@@ -74,7 +74,7 @@ export function listModels(overview: ModelsOverview, query?: string) {
       return {
         carline: c.key,
         name: c.name,
-        from_price: minPrice(models.map((m) => firstPrice(m.prices))),
+        from_price: minPrice(models.map((m) => grossPrice(m.prices))),
         fuel_types: [...new Set(models.map((m) => filterText(m, "FuelType")).filter(Boolean))],
         trims: [...new Set(models.map(trimOf).filter(Boolean))],
         variant_count: models.length,
@@ -108,7 +108,7 @@ export function listVariants(overview: ModelsOverview, carline: OverviewCarline)
       model_year: modelYear,
       name: model.name.trim(),
       long_name: model.longName.trim(),
-      price: firstPrice(model.prices),
+      price: grossPrice(model.prices),
       power: kw ? `${Number(kw)} kW (${ps ? Number(ps) : "?"} PS)` : filterText(model, "EnginePower"),
       fuel: filterText(model, "FuelType"),
       gearbox: filterText(model, "Gear"),
