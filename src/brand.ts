@@ -1,15 +1,19 @@
 export type BrandKey = "vw" | "vwn";
 
+export const BRAND_KEYS: readonly BrandKey[] = ["vw", "vwn"];
+
 interface BrandProfile {
   name: string;
   site: string;
   /**
-   * Tenant to use when VW_TENANT isn't set. Undefined means discover it from
-   * the site. The commercial site's global config names the car tenant, so it
-   * can't be discovered.
+   * Tenant to use when no tenant override is set. Undefined means discover it
+   * from the site. The commercial site's global config names the car tenant,
+   * so it can't be discovered.
    */
   tenant?: string;
   vehicles: string;
+  /** Prefix of the env vars that override this brand's settings. */
+  envPrefix: string;
 }
 
 const BRANDS: Record<BrandKey, BrandProfile> = {
@@ -17,12 +21,14 @@ const BRANDS: Record<BrandKey, BrandProfile> = {
     name: "Volkswagen",
     site: "https://www.volkswagen.de/de",
     vehicles: "passenger cars",
+    envPrefix: "VW",
   },
   vwn: {
     name: "Volkswagen Nutzfahrzeuge",
     site: "https://www.volkswagen-nutzfahrzeuge.de/de",
     tenant: "ihdcc-vwn-de-de",
     vehicles: "vans, campers and pickups (ID. Buzz, Multivan, California, Transporter, Caddy, Crafter, Amarok)",
+    envPrefix: "VWN",
   },
 };
 
@@ -39,18 +45,37 @@ export interface Brand {
   loadCodeUrl: string;
 }
 
-export function resolveBrand(env: Record<string, string | undefined> = process.env): Brand {
-  const key = (env.VW_BRAND ?? "vw").trim().toLowerCase();
-  if (key !== "vw" && key !== "vwn") throw new Error(`Unknown VW_BRAND "${env.VW_BRAND}" (use "vw" or "vwn")`);
+type Env = Record<string, string | undefined>;
+
+/**
+ * Settings for one brand. `VW_SITE`, `VW_TENANT` and `VW_LOAD_CODE_URL`
+ * override the car brand, `VWN_SITE`, `VWN_TENANT` and `VWN_LOAD_CODE_URL`
+ * the commercial one.
+ */
+export function resolveBrand(key: BrandKey = "vw", env: Env = process.env): Brand {
   const profile = BRANDS[key];
-  const site = (env.VW_SITE ?? profile.site).replace(/\/$/, "");
+  const setting = (name: string) => env[`${profile.envPrefix}_${name}`];
+  const site = (setting("SITE") ?? profile.site).replace(/\/$/, "");
   return {
     key,
     name: profile.name,
     vehicles: profile.vehicles,
     site,
     host: new URL(site).host,
-    tenant: env.VW_TENANT ?? profile.tenant,
-    loadCodeUrl: env.VW_LOAD_CODE_URL ?? `${site}/modelle/konfiguration-laden.html`,
+    tenant: setting("TENANT") ?? profile.tenant,
+    loadCodeUrl: setting("LOAD_CODE_URL") ?? `${site}/modelle/konfiguration-laden.html`,
   };
+}
+
+/** The brands to serve: both unless VW_BRAND limits it to one ("vw" or "vwn"). */
+export function resolveBrands(env: Env = process.env): Brand[] {
+  const raw = env.VW_BRAND?.trim().toLowerCase();
+  if (!raw || raw === "all") return BRAND_KEYS.map((k) => resolveBrand(k, env));
+  const keys = [...new Set(raw.split(/[\s,]+/).filter(Boolean))];
+  for (const k of keys) {
+    if (!BRAND_KEYS.includes(k as BrandKey)) {
+      throw new Error(`Unknown VW_BRAND "${env.VW_BRAND}" (use "vw", "vwn" or leave it unset for both)`);
+    }
+  }
+  return keys.map((k) => resolveBrand(k as BrandKey, env));
 }

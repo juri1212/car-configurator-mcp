@@ -18,9 +18,15 @@ that calls VW's "victor" service on OneAPI.
 | Tenant | `ihdcc-vw-de-de` (passenger cars DE), `ihdcc-vwn-de-de` (commercial) |
 | Key/tenant source | `https://www.volkswagen.de/de.feature-apps.json` (app `Configure` → `oneApiKey`), `https://www.volkswagen.de/de.global-config.json` (`oneapi-victor`) |
 
-The commercial tenant (`VW_BRAND=vwn`) uses the same API and key. Its site's
+The commercial tenant uses the same API and key. Its site's
 `global-config.json` names the car tenant, so `ihdcc-vwn-de-de` is set by the
 brand instead of discovered.
+
+The server talks to both tenants at once, one client each. Carline keys don't
+overlap (cars `3xxxx`, commercial `7xxxx`), so a carline name or key picks the
+tenant. Every tenant loads every VW Code and the stored configuration's
+`tenantKey` is empty, so `import_code` picks the tenant whose overview has the
+code's `carlineKey`.
 
 Price lists differ per tenant. Cars: one entry, `{ type: "price", vatIncluded: true }`.
 Commercial: `price` (net, `vatIncluded: false`), then `Gross` and `Gross Delta`
@@ -95,18 +101,18 @@ Behaviour rules:
 ## Implementation
 
 - TypeScript, `@modelcontextprotocol/sdk`, `zod` (tool inputs), stdio transport, native `fetch`.
-- Startup: fetch API key and tenant from the VW config JSONs. `VW_API_KEY` and
-  `VW_TENANT` env vars override them. Fetch the cache key and refresh it
+- Startup: fetch API key and tenant from the VW config JSONs, per brand.
+  `VW_API_KEY` and `VW_TENANT` / `VWN_TENANT` env vars override them. Fetch the cache key and refresh it
   on 4xx or every hour.
 - Cache catalogue responses by cache key. Space requests out, no parallel fan-out.
-- Sessions in memory. The VW Code is how a configuration persists.
+- Sessions in memory, each tied to its brand. The VW Code is how a configuration persists.
 - Responses are typed with TS interfaces (not zod). The backend expects its own objects back unchanged.
 - Tests: vitest against recorded fixtures (`test/fixtures`), plus an opt-in live test (`npm run test:live`).
 
 ```
 src/
   index.ts            # MCP server + tool registration
-  brand.ts            # VW_BRAND: site, tenant and wording per brand
+  brand.ts            # enabled brands (VW_BRAND); site, tenant and wording per brand
   victor/client.ts    # HTTP, key/tenant discovery, cacheKey, throttling
   victor/types.ts     # backend response types
   catalog.ts          # carlines, trims, engines from the overview
