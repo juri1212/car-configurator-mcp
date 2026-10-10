@@ -9,7 +9,7 @@ export function registerCatalogTools(server: McpServer, ctx: ToolContext) {
     {
       title: "List VW models",
       description:
-        "List the model lines (carlines) available in the Volkswagen configurator, with starting price (EUR, incl. VAT), fuel types and trims. Use the carline key or name with list_variants.",
+        `List the model lines (carlines) available in the ${ctx.brand.name} configurator, with starting price (EUR, incl. VAT), fuel types and trims. Use the carline key or name with list_variants.`,
       inputSchema: {
         query: z.string().optional().describe('Filter by name, e.g. "golf" or "ID."'),
       },

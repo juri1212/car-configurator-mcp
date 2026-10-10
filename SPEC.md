@@ -18,6 +18,15 @@ that calls VW's "victor" service on OneAPI.
 | Tenant | `ihdcc-vw-de-de` (passenger cars DE), `ihdcc-vwn-de-de` (commercial) |
 | Key/tenant source | `https://www.volkswagen.de/de.feature-apps.json` (app `Configure` → `oneApiKey`), `https://www.volkswagen.de/de.global-config.json` (`oneapi-victor`) |
 
+The commercial tenant (`VW_BRAND=vwn`) uses the same API and key. Its site's
+`global-config.json` names the car tenant, so `ihdcc-vwn-de-de` is set by the
+brand instead of discovered.
+
+Price lists differ per tenant. Cars: one entry, `{ type: "price", vatIncluded: true }`.
+Commercial: `price` (net, `vatIncluded: false`), then `Gross` and `Gross Delta`
+(the VAT), all marked `vatIncluded: false`. The server always reports the gross
+price and adds `net_total` to summaries when a net price exists.
+
 Endpoints (all accept `tenant` and `cacheKey` query params):
 
 | Endpoint | Purpose |
@@ -81,7 +90,7 @@ Behaviour rules:
 - Budget: `max_total_price` filters options using current total + option price.
   Package side effects can change the real total; use `dry_run` to get the
   exact figure.
-- Prices are DE private customer, gross (VAT incl.), EUR.
+- Prices are DE, gross (VAT incl.), EUR. Commercial vehicles also get `net_total`.
 
 ## Implementation
 
@@ -97,6 +106,7 @@ Behaviour rules:
 ```
 src/
   index.ts            # MCP server + tool registration
+  brand.ts            # VW_BRAND: site, tenant and wording per brand
   victor/client.ts    # HTTP, key/tenant discovery, cacheKey, throttling
   victor/types.ts     # backend response types
   catalog.ts          # carlines, trims, engines from the overview
