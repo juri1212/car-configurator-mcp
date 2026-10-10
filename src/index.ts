@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { type Brand, resolveBrand } from "./brand.js";
 import { SessionStore } from "./session.js";
 import { registerCatalogTools } from "./tools/catalog.js";
 import { registerCodeTools } from "./tools/codes.js";
@@ -13,20 +14,19 @@ import { VictorClient } from "./victor/client.js";
 
 const VERSION = "0.1.0";
 
-export function createServer(client: VictorClient, sessions = new SessionStore()) {
-  const site = (process.env.VW_SITE ?? "https://www.volkswagen.de/de").replace(/\/$/, "");
-  const ctx: ToolContext = {
-    client,
-    sessions,
-    loadCodeUrl: process.env.VW_LOAD_CODE_URL ?? `${site}/modelle/konfiguration-laden.html`,
-  };
+export function createServer(client: VictorClient, sessions = new SessionStore(), brand: Brand = resolveBrand()) {
+  const ctx: ToolContext = { client, sessions, brand };
+  const prices =
+    brand.key === "vwn"
+      ? "Prices are EUR incl. VAT; summaries also give net_total excl. VAT, which business customers usually go by. "
+      : "Prices are EUR incl. VAT for private customers. ";
   const server = new McpServer(
     { name: "vw-cc-mcp", version: VERSION },
     {
       instructions:
-        "Spec a Volkswagen through the volkswagen.de configurator. Typical flow: list_models → list_variants → start_configuration → list_options / change_options (use dry_run to preview) → get_summary → export_code. " +
-        "Always tell the user about side_effects of change_options. Prices are EUR incl. VAT for private customers. " +
-        "The VW Code from export_code opens the same car on volkswagen.de (\"Konfiguration laden\").",
+        `Spec ${brand.vehicles} through the ${brand.name} configurator (${brand.host}). Typical flow: list_models → list_variants → start_configuration → list_options / change_options (use dry_run to preview) → get_summary → export_code. ` +
+        `Always tell the user about side_effects of change_options. ${prices}` +
+        `The VW Code from export_code opens the same configuration on ${brand.host} ("Konfiguration laden").`,
     },
   );
   registerCatalogTools(server, ctx);
@@ -38,15 +38,16 @@ export function createServer(client: VictorClient, sessions = new SessionStore()
 
 async function main() {
   const log = (m: string) => process.stderr.write(`[vw-cc-mcp] ${m}\n`);
+  const brand = resolveBrand();
   const client = new VictorClient({
     apiKey: process.env.VW_API_KEY,
-    tenant: process.env.VW_TENANT,
-    site: process.env.VW_SITE,
+    tenant: brand.tenant,
+    site: brand.site,
     log,
   });
-  const server = createServer(client);
+  const server = createServer(client, new SessionStore(), brand);
   await server.connect(new StdioServerTransport());
-  log(`ready (v${VERSION})`);
+  log(`ready (v${VERSION}, ${brand.name})`);
   // Discover API key/tenant in the background so the first tool call is faster.
   client.init().then(() => log(`tenant ${client.tenantKey}`));
 }

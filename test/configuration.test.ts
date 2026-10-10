@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   diffConfigurations,
   effectiveConfiguration,
+  grossPrice,
   listOptions,
+  netPrice,
   summarise,
   totalPrice,
 } from "../src/configuration.js";
-import { id4Start, poloStart, poloStepIqDrive } from "./helpers.js";
+import { id4Start, idBuzzStart, poloStart, poloStepIqDrive } from "./helpers.js";
 
 describe("configuration", () => {
   const start = poloStart();
@@ -72,5 +74,32 @@ describe("configuration", () => {
     expect(sum.efficiency?.engine_type).toBe("PEV");
     expect(sum.efficiency?.electric_range_wltp).toBe("428 km");
     expect(sum.technical_data?.["Batterie / Ladesystem"]?.["Maximale DC Ladeleistung"]).toBe("105 kW");
+  });
+
+  describe("commercial vehicle prices", () => {
+    const buzz = idBuzzStart();
+    const buzzVc = effectiveConfiguration(buzz);
+
+    it("picks gross and net prices from the backend's price list", () => {
+      const prices = [
+        { currency: "EUR", price: 870, type: "price", vatIncluded: false },
+        { currency: "EUR", price: 1035.3, type: "Gross", vatIncluded: false },
+        { currency: "EUR", price: 165.3, type: "Gross Delta", vatIncluded: false },
+      ];
+      expect(grossPrice(prices)).toBe(1035.3);
+      expect(netPrice(prices)).toBe(870);
+      const car = [{ currency: "EUR", price: 690, type: "price", vatIncluded: true }];
+      expect(grossPrice(car)).toBe(690);
+      expect(netPrice(car)).toBeNull();
+    });
+
+    it("reports gross prices with a net total", () => {
+      const sum = summarise(buzzVc, buzz.vehicleCatalogue);
+      expect(sum.prices.total).toBe(52270.75);
+      expect(sum.prices.net_total).toBe(43925);
+      expect(summarise(startVc, start.vehicleCatalogue).prices).not.toHaveProperty("net_total");
+      const paint = listOptions(buzz.vehicleCatalogue, totalPrice(buzzVc)).find((o) => o.code === "F14 C4C4")!;
+      expect(paint).toMatchObject({ name: "Bay Leaf Green Metallic", price: 1035.3 });
+    });
   });
 });
