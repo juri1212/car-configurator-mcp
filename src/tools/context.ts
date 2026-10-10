@@ -1,12 +1,43 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { Brand } from "../brand.js";
+import { z } from "zod";
+import type { Brand, BrandKey } from "../brand.js";
 import type { VictorClient } from "../victor/client.js";
 import type { SessionStore } from "../session.js";
 
-export interface ToolContext {
-  client: VictorClient;
-  sessions: SessionStore;
+/** One configurator backend: a brand and the client for its tenant. */
+export interface Backend {
   brand: Brand;
+  client: VictorClient;
+}
+
+export interface ToolContext {
+  backends: Backend[];
+  sessions: SessionStore;
+}
+
+export function backendFor(ctx: ToolContext, key: BrandKey): Backend {
+  const backend = ctx.backends.find((b) => b.brand.key === key);
+  if (!backend) {
+    throw new Error(`Brand "${key}" is not enabled. Enabled: ${ctx.backends.map((b) => b.brand.key).join(", ")}`);
+  }
+  return backend;
+}
+
+/** The backends to query: the given brand, or all of them. */
+export function backendsFor(ctx: ToolContext, key?: BrandKey): Backend[] {
+  return key ? [backendFor(ctx, key)] : ctx.backends;
+}
+
+/** Optional `brand` tool argument limited to the enabled brands. */
+export function brandArg(ctx: ToolContext) {
+  const keys = ctx.backends.map((b) => b.brand.key) as [BrandKey, ...BrandKey[]];
+  const names = ctx.backends.map((b) => `${b.brand.key} = ${b.brand.name}`).join(", ");
+  return z.enum(keys).optional().describe(`Only this brand (${names}). Default: all`);
+}
+
+/** "www.volkswagen.de or www.volkswagen-nutzfahrzeuge.de" */
+export function hosts(ctx: ToolContext): string {
+  return ctx.backends.map((b) => b.brand.host).join(" or ");
 }
 
 export function json(data: unknown): CallToolResult {

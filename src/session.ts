@@ -1,9 +1,12 @@
 import { randomBytes } from "node:crypto";
+import type { BrandKey } from "./brand.js";
 import type { VehicleCatalogue, VehicleConfiguration } from "./victor/types.js";
 import { totalPrice } from "./configuration.js";
 
 export interface Session {
   id: string;
+  /** Configurator the configuration belongs to; all its requests go there. */
+  brand: BrandKey;
   label: string;
   vehicleConfiguration: VehicleConfiguration;
   catalogue: VehicleCatalogue;
@@ -24,13 +27,20 @@ function defaultLabel(vc: VehicleConfiguration): string {
 export class SessionStore {
   private sessions = new Map<string, Session>();
 
-  create(vc: VehicleConfiguration, catalogue: VehicleCatalogue, label?: string, importedFrom?: string): Session {
+  create(
+    brand: BrandKey,
+    vc: VehicleConfiguration,
+    catalogue: VehicleCatalogue,
+    label?: string,
+    importedFrom?: string,
+  ): Session {
     let id: string;
     do id = `cfg_${randomBytes(3).toString("hex")}`;
     while (this.sessions.has(id));
     const now = new Date();
     const session: Session = {
       id,
+      brand,
       label: label?.trim() || defaultLabel(vc),
       vehicleConfiguration: vc,
       catalogue,
@@ -68,6 +78,7 @@ export class SessionStore {
   list() {
     return [...this.sessions.values()].map((s) => ({
       config_id: s.id,
+      brand: s.brand,
       label: s.label,
       model: (s.vehicleConfiguration.modelLongName ?? s.vehicleConfiguration.modelName)?.trim(),
       total_price: totalPrice(s.vehicleConfiguration),

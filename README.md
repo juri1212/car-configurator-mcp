@@ -7,7 +7,7 @@ and technical data, compare configurations, and export a **VW Code** you can
 open in the real configurator under
 [Konfiguration laden](https://www.volkswagen.de/de/modelle/konfiguration-laden.html).
 
-It also works with the
+The same server also covers the
 [Volkswagen Nutzfahrzeuge configurator](https://www.volkswagen-nutzfahrzeuge.de/de.html)
 (ID. Buzz, Multivan, California, Transporter, Caddy, Crafter, Amarok); see
 [Commercial vehicles](#commercial-vehicles).
@@ -47,7 +47,7 @@ claude mcp add vw-configurator -- node /absolute/path/to/vw-cc-mcp/dist/index.js
 
 | Tool | What it does |
 |---|---|
-| `list_models` | Model lines with starting price, fuel types, trims |
+| `list_models` | Model lines of both brands with starting price, fuel types, trims |
 | `list_variants` | Trims of a model and their engines/gearboxes with price and power |
 | `start_configuration` | New configuration from a trim (optionally a specific engine) → `config_id` |
 | `list_options` | Paints, interiors, wheels, packages, options, accessories; filter by category, text, budget |
@@ -79,22 +79,22 @@ VW Codes are valid for about six months.
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `VW_BRAND` | `vw` | `vw` for cars (volkswagen.de), `vwn` for commercial vehicles (volkswagen-nutzfahrzeuge.de) |
-| `VW_SITE` | the brand's site | Market site, used to discover API key and tenant |
-| `VW_API_KEY` | discovered | Override the OneAPI key |
-| `VW_TENANT` | discovered (`ihdcc-vw-de-de`); `ihdcc-vwn-de-de` for `vwn` | Override the tenant |
-| `VW_LOAD_CODE_URL` | `<VW_SITE>/modelle/konfiguration-laden.html` | Link returned by `export_code` |
+| `VW_BRAND` | both | Limit the server to `vw` (cars, volkswagen.de) or `vwn` (commercial vehicles, volkswagen-nutzfahrzeuge.de) |
+| `VW_API_KEY` | discovered | Override the OneAPI key (both brands) |
+| `VW_SITE` / `VWN_SITE` | the brand's site | Market site, used to discover API key and tenant |
+| `VW_TENANT` / `VWN_TENANT` | discovered (`ihdcc-vw-de-de`) / `ihdcc-vwn-de-de` | Override the tenant |
+| `VW_LOAD_CODE_URL` / `VWN_LOAD_CODE_URL` | `<site>/modelle/konfiguration-laden.html` | Link returned by `export_code` |
+
+`VW_*` settings apply to cars, `VWN_*` to commercial vehicles.
 
 Only the German market has been tested.
 
 ### Commercial vehicles
 
-Set `VW_BRAND=vwn` to configure the Volkswagen Nutzfahrzeuge range. One server
-covers one brand, so register a second server if you want both:
-
-```sh
-claude mcp add vw-nutzfahrzeuge -e VW_BRAND=vwn -- node /absolute/path/to/vw-cc-mcp/dist/index.js
-```
+Cars and commercial vehicles are served side by side. `list_models` returns
+both ranges, each model tagged with its `brand` (`vw` or `vwn`); the catalogue
+tools take an optional `brand` to narrow down. A configuration remembers its
+brand, and `import_code` detects it from the code.
 
 Prices are reported incl. VAT, like for cars. Summaries also include
 `net_total` (excl. VAT), which is what business customers usually look at.

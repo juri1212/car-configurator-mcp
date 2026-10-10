@@ -85,6 +85,52 @@ describe("MCP server", () => {
     expect((await call("import_code", { code: "short" })).error).toMatch(/not a VW Code/);
   });
 
+  it("serves cars and commercial vehicles side by side", async () => {
+    const calls: RecordedCall[] = [];
+    const { call } = await connectTestServer(calls);
+
+    const models = await call("list_models");
+    const brandOf = (name: string) => models.find((m: { name: string }) => m.name === name)?.brand;
+    expect(brandOf("Der Polo")).toBe("vw");
+    expect(brandOf("Der ID. Buzz")).toBe("vwn");
+    expect((await call("list_models", { brand: "vwn" })).map((m: { brand: string }) => m.brand)).not.toContain("vw");
+
+    const variants = await call("list_variants", { carline: "ID. Buzz" });
+    expect(variants).toMatchObject({ brand: "vwn", carline: "72006" });
+
+    const polo = await call("start_configuration", { carline: "Polo", trim: "EDITION 50" });
+    const buzz = await call("start_configuration", { carline: "Der ID. Buzz", trim: "Pure" });
+    expect(polo.brand).toBe("vw");
+    expect(buzz.brand).toBe("vwn");
+    expect(buzz.prices.net_total).toBeLessThan(buzz.prices.total);
+    const starts = calls.filter((c) => c.path === "/vcso/configStart").map((c) => c.query.get("tenant"));
+    expect(starts).toEqual(["ihdcc-vw-de-de", "ihdcc-vwn-de-de"]);
+
+    calls.length = 0;
+    const exported = await call("export_code", { config_id: buzz.config_id });
+    expect(exported).toMatchObject({ brand: "vwn", load_at: expect.stringContaining("volkswagen-nutzfahrzeuge.de") });
+    expect(calls.find((c) => c.path === "/vcso/storeConfiguration")!.query.get("tenant")).toBe("ihdcc-vwn-de-de");
+    expect((await call("export_code", { config_id: polo.config_id })).load_at).toContain("www.volkswagen.de");
+
+    const list = await call("list_configurations");
+    expect(list.map((c: { brand: string }) => c.brand).sort()).toEqual(["vw", "vwn"]);
+  });
+
+  it("explains carline names that match in several brands", async () => {
+    const { call } = await connectTestServer();
+    expect((await call("list_variants", { carline: "ID." })).error).toMatch(/several models.*\(72006, vwn\)/);
+    expect((await call("list_variants", { carline: "Buzz", brand: "vw" })).error).toMatch(/No model matches/);
+  });
+
+  it("imports a commercial vehicle code into its brand", async () => {
+    const calls: RecordedCall[] = [];
+    const { call } = await connectTestServer(calls);
+    const imported = await call("import_code", { code: "VBUZZ001" });
+    expect(imported.brand).toBe("vwn");
+    expect(calls.find((c) => c.path === "/vcso/configStep")!.query.get("tenant")).toBe("ihdcc-vwn-de-de");
+    expect((await call("import_code", { code: "VLCQNLFL" })).brand).toBe("vw");
+  });
+
   it("compares configurations", async () => {
     const { call } = await connectTestServer();
     const a = await call("start_configuration", { carline: "Polo", trim: "EDITION 50", label: "A" });

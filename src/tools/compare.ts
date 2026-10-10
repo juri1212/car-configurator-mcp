@@ -27,6 +27,7 @@ export function compare(list: Session[]) {
       }
       return {
         config_id: s.id,
+        brand: s.brand,
         label: s.label,
         model: sum.model.name,
         trim: sum.model.trim,
