@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { type Brand, resolveBrand } from "../src/brand.js";
+import { type Brand, resolveBrands } from "../src/brand.js";
 import { createServer } from "../src/index.js";
 import { SessionStore } from "../src/session.js";
 import { VictorClient } from "../src/victor/client.js";
@@ -12,6 +12,8 @@ export function fixture<T>(name: string): T {
 }
 
 export const overview = () => fixture<ModelsOverview>("overview");
+/** Commercial vehicles overview, trimmed to ID. Buzz and ID. Buzz Cargo. */
+export const vwnOverview = () => fixture<ModelsOverview>("vwn-overview");
 export const poloStart = () => fixture<ConfigResponse>("polo-start");
 export const poloStepIqDrive = () => fixture<ConfigResponse>("polo-step-iqdrive");
 export const poloImportStep = () => fixture<ConfigResponse>("polo-import-step");
@@ -19,6 +21,11 @@ export const id4Start = () => fixture<ConfigResponse>("id4-start");
 /** ID. Buzz Pure from the commercial vehicles tenant: net + gross prices. */
 export const idBuzzStart = () => fixture<ConfigResponse>("idbuzz-start");
 export const loadVLCQNLFL = () => fixture<StoredConfigurationResponse>("load-VLCQNLFL");
+/** A stored ID. Buzz, answered for the made-up code VBUZZ001. */
+export const loadBuzz = (): StoredConfigurationResponse => ({
+  ...loadVLCQNLFL(),
+  storedConfiguration: idBuzzStart().vehicleConfiguration,
+});
 
 export interface RecordedCall {
   method: string;
@@ -27,7 +34,7 @@ export interface RecordedCall {
   body?: any;
 }
 
-/** A fetch stand-in that answers from recorded fixtures. */
+/** A fetch stand-in that answers from recorded fixtures, per tenant. */
 export function fakeFetch(calls: RecordedCall[] = []) {
   const respond = (status: number, data: unknown) =>
     new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -36,15 +43,17 @@ export function fakeFetch(calls: RecordedCall[] = []) {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     calls.push({ method: init?.method ?? "GET", path: url.pathname, query: url.searchParams, body });
+    const vwn = url.searchParams.get("tenant") === "ihdcc-vwn-de-de";
 
     switch (true) {
       case url.pathname.startsWith("/cks/cachekey/"):
         return respond(200, { key: "test-cache-key" });
       case url.pathname === "/viso/catalogue/models/overview":
-        return respond(200, overview());
+        return respond(200, vwn ? vwnOverview() : overview());
       case url.pathname === "/vcso/configStart":
-        return respond(200, poloStart());
+        return respond(200, vwn ? idBuzzStart() : poloStart());
       case url.pathname === "/vcso/configStep": {
+        if (vwn) return respond(200, idBuzzStart());
         const added: string[] = body.addedFeatures.map((f: { code: string }) => f.code);
         if (added.includes("GPF3PF3")) return respond(200, poloStepIqDrive());
         if (!added.length && !body.removedFeatures.length) return respond(200, poloImportStep());
@@ -57,7 +66,7 @@ export function fakeFetch(calls: RecordedCall[] = []) {
       case url.pathname === "/vcso/storeConfiguration":
         return respond(200, { marketingcode: "VTEST123" });
       case url.pathname === "/vcso/loadConfiguration":
-        return respond(200, loadVLCQNLFL());
+        return respond(200, url.searchParams.get("marketingCode") === "VBUZZ001" ? loadBuzz() : loadVLCQNLFL());
       default:
         return respond(404, { message: `no fixture for ${url.pathname}` });
     }
@@ -65,14 +74,18 @@ export function fakeFetch(calls: RecordedCall[] = []) {
   return fn as typeof fetch;
 }
 
-export async function connectTestServer(calls: RecordedCall[] = [], brand: Brand = resolveBrand({})) {
-  const victor = new VictorClient({
-    apiKey: "test-key",
-    tenant: "ihdcc-vw-de-de",
-    fetch: fakeFetch(calls),
-    minRequestGapMs: 0,
-  });
-  const server = createServer(victor, new SessionStore(), brand);
+export async function connectTestServer(calls: RecordedCall[] = [], brands: Brand[] = resolveBrands({})) {
+  const fetch = fakeFetch(calls);
+  const backends = brands.map((brand) => ({
+    brand,
+    client: new VictorClient({
+      apiKey: "test-key",
+      tenant: brand.tenant ?? "ihdcc-vw-de-de",
+      fetch,
+      minRequestGapMs: 0,
+    }),
+  }));
+  const server = createServer(backends, new SessionStore());
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0" });
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
