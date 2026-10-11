@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { type Brand, resolveBrands } from "../src/brand.js";
+import { createVictorBackends } from "../src/backends/victor/adapter.js";
+import { type Brand, resolveBrands } from "../src/backends/victor/brand.js";
 import { createServer } from "../src/index.js";
 import { SessionStore } from "../src/session.js";
-import { VictorClient } from "../src/victor/client.js";
-import type { ConfigResponse, ModelsOverview, StoredConfigurationResponse } from "../src/victor/types.js";
+import { VictorClient } from "../src/backends/victor/client.js";
+import type { ConfigResponse, ModelsOverview, StoredConfigurationResponse } from "../src/backends/victor/types.js";
 
 export function fixture<T>(name: string): T {
   return JSON.parse(readFileSync(new URL(`./fixtures/${name}.json`, import.meta.url), "utf8")) as T;
@@ -76,15 +77,16 @@ export function fakeFetch(calls: RecordedCall[] = []) {
 
 export async function connectTestServer(calls: RecordedCall[] = [], brands: Brand[] = resolveBrands({})) {
   const fetch = fakeFetch(calls);
-  const backends = brands.map((brand) => ({
-    brand,
-    client: new VictorClient({
-      apiKey: "test-key",
-      tenant: brand.tenant ?? "ihdcc-vw-de-de",
-      fetch,
-      minRequestGapMs: 0,
-    }),
-  }));
+  const backends = createVictorBackends(
+    brands,
+    (brand) =>
+      new VictorClient({
+        apiKey: "test-key",
+        tenant: brand.tenant ?? "ihdcc-vw-de-de",
+        fetch,
+        minRequestGapMs: 0,
+      }),
+  );
   const server = createServer(backends, new SessionStore());
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "test", version: "0" });

@@ -78,17 +78,27 @@ All configuration tools work on a server-side session identified by `config_id`.
 
 | Tool | Input | Output |
 |---|---|---|
-| `list_models` | `query?` | Carlines with "from" price, fuel types |
-| `list_variants` | `carline` | Sales groups → trims → engines/gearboxes with price, power, consumption/range |
-| `start_configuration` | `carline`, `trim`, `model_key?` | `config_id` + summary |
-| `list_options` | `config_id`, `category?`, `search?`, `only_selectable?`, `max_total_price?` | Options with code, name, price, selected/standard/package state |
+| `list_models` | `query?`, `brand?` | Carlines with brand, currency, "from" price, fuel types, trims |
+| `list_variants` | `carline`, `brand?` | Trims → variants (`variant_id`, model code, price, power, fuel, gearbox), currency |
+| `start_configuration` | `variant_id` or `carline` + `trim` + `model_code?`; `brand?`, `label?` | `config_id` + summary |
+| `list_options` | `config_id`, `category?` (`paint`, `interior`, `wheels`, `packages`, `options`, `accessories`, `standard`), `search?`, `only_selectable?`, `max_total_price?` | Currency, current total, options with code, name, price, category, selected/standard/package state |
 | `get_option` | `config_id`, `code` | Details, which packages contain it, what it includes |
-| `change_options` | `config_id`, `add[]`, `remove[]`, `dry_run?` | Diff: `applied`, `not_applied`, `side_effects` {`added`, `removed`, `replaced`, `standard_replaced`, `standard_restored`}, price before/after/change. With `dry_run` nothing is saved |
-| `get_summary` | `config_id` | Model, colours, selected options, price breakdown, tech data, WLTP/efficiency |
-| `export_code` | `config_id` | `configurator_url` (deep link `<site>/konfigurator.html/__app/route:configure.app?…`, the same one the site builds after loading a code), VW Code, expiry |
-| `import_code` | `code` | New `config_id` rebuilt from the stored configuration |
-| `compare_configurations` | `config_ids[]` | Side-by-side: price, power, consumption/range, option differences |
-| `list_configurations` | – | Sessions in memory |
+| `change_options` | `config_id`, `add[]`, `remove[]`, `dry_run?` | Diff: `applied`, `not_applied`, `side_effects` {`added`, `removed`, `replaced`, `standard_replaced`, `standard_restored`}, `choices_required` (always `[]` for VW), price before/after/change. With `dry_run` nothing is saved |
+| `get_summary` | `config_id`, `technical_data?` | Model (incl. `variant_id`), colours, selected options, price breakdown with currency, `performance` (power, top speed, 0–100), WLTP/efficiency, tech data, `code` |
+| `export_code` | `config_id` | `configurator_url` (VW: deep link `<site>/konfigurator.html/__app/route:configure.app?…`, the same one the site builds after loading a code), `code`, `expires` (may be null) |
+| `import_code` | `code`, `brand?`, `label?` | New `config_id` rebuilt from the stored configuration |
+| `compare_configurations` | `config_ids[]` | Side-by-side: price, power, top speed, 0–100, consumption/range, option differences |
+| `list_configurations` | – | Sessions in memory with `code` and link if exported |
+
+VW mapping: `variant_id` is the overview model key
+(`<carline>_<salesgroup>_<modelCode>_<modelYear>_<version>`). Every model has
+exactly one `EquipmentLine` filter and model codes are unique per carline, so
+the key fully identifies carline, sales group, trim and engine. The version
+segment isn't sent to configStart; a key with another version still resolves.
+Option categories: `exterior` → `paint`, `interior` → `interior`,
+`wheel`/`wheelOption` → `wheels`, `option` → `packages` (features with
+package contents) or `options`, `accessories` → `accessories`,
+`standardEquipment` → `standard`.
 
 Behaviour rules:
 - **Never hide side effects.** If a step adds or removes options the agent
@@ -96,7 +106,11 @@ Behaviour rules:
 - Budget: `max_total_price` filters options using current total + option price.
   Package side effects can change the real total; use `dry_run` to get the
   exact figure.
-- Prices are DE, gross (VAT incl.), EUR. Commercial vehicles also get `net_total`.
+- Prices are gross (VAT incl.) in the market currency named by the backend
+  (`currency`; EUR for VW DE). Commercial vehicles also get `net_total`.
+- `import_code` uses `brand` if given. Otherwise each backend whose code format
+  fits is asked whether it owns the code (VW: the code's carline is in the
+  brand's overview); if none claims it, the first matching backend loads it.
 
 ## Implementation
 
@@ -105,21 +119,58 @@ Behaviour rules:
   `VW_API_KEY` and `VW_TENANT` / `VWN_TENANT` env vars override them. Fetch the cache key and refresh it
   on 4xx or every hour.
 - Cache catalogue responses by cache key. Space requests out, no parallel fan-out.
-- Sessions in memory, each tied to its brand. The VW Code is how a configuration persists.
+- Sessions in memory, each tied to its brand. A session holds brand, label,
+  timestamps, the last exported code and an opaque backend state. The code is
+  how a configuration persists.
 - Responses are typed with TS interfaces (not zod). The backend expects its own objects back unchanged.
 - Tests: vitest against recorded fixtures (`test/fixtures`), plus an opt-in live test (`npm run test:live`).
 
+### Backend adapters
+
+Tools only talk to `ConfiguratorBackend` (`src/core/backend.ts`) and return
+the brand-neutral types in `src/core/types.ts`. One adapter instance per
+brand; the `brand` enum is derived from the enabled adapters. Catalogue calls
+fan out with `Promise.allSettled`, so one brand failing doesn't hide the
+others. Throttling and caching stay inside each backend's client.
+
+```ts
+interface ConfiguratorBackend<S = unknown> {
+  key, name, vehicles, host, codeName, codeFormat, notes?
+  listModels(query?): Promise<ModelLine[]>
+  listVariants(carline): Promise<VariantList>
+  hasVariant(variantId): Promise<boolean>
+  start(req: StartRequest): Promise<Opened<S>>
+  listOptions(state, filter?): Promise<OptionList>
+  getOption(state, code): Promise<OptionDetails>
+  change(state, { add, remove, dryRun? }): Promise<ChangeOutcome<S>>
+  summary(state, { technical? }): Promise<Summary>
+  exportCode(state): Promise<ExportResult>
+  parseCode(code): string | null
+  ownsCode(code): Promise<boolean>
+  importCode(code): Promise<ImportResult<S>>
+}
+```
+
+The Victor adapter serves `vw` and `vwn` (one `VictorClient` each). Its state
+is `{ vehicleConfiguration, catalogue }`. The two instances share recently
+loaded VW Codes, so detecting a code's brand and importing it load it once.
+
 ```
 src/
-  index.ts            # MCP server + tool registration
-  brand.ts            # enabled brands (VW_BRAND); site, tenant and wording per brand
-  victor/client.ts    # HTTP, key/tenant discovery, cacheKey, throttling
-  victor/types.ts     # backend response types
-  catalog.ts          # carlines, trims, engines from the overview
-  configuration.ts    # options, diffs, summaries (pure functions)
-  session.ts          # in-memory configurations
-  tools/*.ts          # catalog, configure, codes, compare
-test/fixtures/        # recorded responses
+  index.ts                     # MCP server + tool registration, builds the adapters
+  session.ts                   # in-memory configurations (opaque backend state)
+  core/backend.ts              # ConfiguratorBackend interface
+  core/types.ts                # brand-neutral tool output types
+  core/match.ts                # carline name matching
+  tools/*.ts                   # catalog, configure, codes, compare (interface only)
+  backends/victor/adapter.ts   # VictorBackend implements ConfiguratorBackend
+  backends/victor/brand.ts     # enabled brands (VW_BRAND); site, tenant and wording per brand
+  backends/victor/client.ts    # HTTP, key/tenant discovery, cacheKey, throttling
+  backends/victor/types.ts     # backend response types
+  backends/victor/catalog.ts   # carlines, trims, engines from the overview
+  backends/victor/configuration.ts # options, diffs, summaries (pure functions)
+  backends/victor/codes.ts     # VW Code format, loaded-code cache, configurator links
+test/fixtures/                 # recorded responses
 ```
 
 ## Risks / open items

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { listModels, listVariants, parseModelKey, resolveCarline, resolveStart } from "../src/catalog.js";
+import {
+  listModels,
+  listVariants,
+  parseModelKey,
+  resolveCarline,
+  resolveStart,
+  startParamsForVariant,
+} from "../src/backends/victor/catalog.js";
 import { overview } from "./helpers.js";
 
 describe("catalog", () => {
@@ -43,6 +50,22 @@ describe("catalog", () => {
     const prices = life.engines.map((e) => e.price!);
     expect(prices).toEqual([...prices].sort((a, b) => a - b));
     expect(life.engines[0].power).toMatch(/kW \(\d+ PS\)/);
+    expect(parseModelKey(life.engines[0].variant_id)).toMatchObject({ carlineKey: "30600", salesgroupKey: "37505" });
+  });
+
+  it("starts from a variant id (the overview model key)", () => {
+    const style = listVariants(ov, resolveCarline(ov, "golf")).find((t) => t.name === "Style")!;
+    const engine = style.engines[1];
+    expect(startParamsForVariant(ov, engine.variant_id)).toEqual({
+      carlineKey: "30600",
+      salesgroupKey: style.salesgroup,
+      trimName: "Style",
+      modelCode: engine.model_code,
+      modelYear: engine.model_year,
+    });
+    // A different model version still resolves.
+    expect(startParamsForVariant(ov, engine.variant_id.replace(/_\d+$/, "_9")).modelCode).toBe(engine.model_code);
+    expect(() => startParamsForVariant(ov, "nope")).toThrow(/Unknown variant_id/);
   });
 
   it("resolves trim and engine for start_configuration", () => {

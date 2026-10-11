@@ -37,13 +37,13 @@ describe.skipIf(!live)("live", () => {
     expect(cfg.model.trim).toBe(trim.name);
     const id = cfg.config_id;
 
-    const paints = await call("list_options", { config_id: id, category: "exterior", only_selectable: true });
+    const paints = await call("list_options", { config_id: id, category: "paint", only_selectable: true });
     const paint = paints.options.find((o: { price: number | null }) => (o.price ?? 0) > 0) ?? paints.options[0];
     const paintChange = await call("change_options", { config_id: id, add: [paint.code] });
     expect(paintChange.applied).toBe(true);
     expect(paintChange.side_effects.replaced.map((o: { code: string }) => o.code)).toEqual([cfg.exterior.code]);
 
-    const options = await call("list_options", { config_id: id, category: "option", only_selectable: true });
+    const options = await call("list_options", { config_id: id, category: "options", only_selectable: true });
     const option = options.options.find((o: { price: number | null }) => (o.price ?? 0) > 0);
     const preview = await call("change_options", { config_id: id, add: [option.code], dry_run: true });
     expect(preview.saved).toBe(false);
@@ -54,10 +54,10 @@ describe.skipIf(!live)("live", () => {
     expect(summary.exterior.code).toBe(paint.code);
 
     const exported = await call("export_code", { config_id: id });
-    expect(exported.vw_code).toMatch(/^[A-Z0-9]{8}$/);
-    console.log(`VW Code: ${exported.vw_code} (${summary.model.name}, ${summary.prices.total} €)`);
+    expect(exported.code).toMatch(/^[A-Z0-9]{8}$/);
+    console.log(`VW Code: ${exported.code} (${summary.model.name}, ${summary.prices.total} €)`);
 
-    const imported = await call("import_code", { code: exported.vw_code });
+    const imported = await call("import_code", { code: exported.code });
     expect(imported.exterior.code).toBe(paint.code);
     expect(imported.prices.total).toBe(summary.prices.total);
     expect(imported.options.map((o: { code: string }) => o.code)).toContain(option.code);
@@ -90,16 +90,16 @@ describe.skipIf(!live)("live (Volkswagen Nutzfahrzeuge)", () => {
     const cfg = await call("start_configuration", { carline: "ID. Buzz", trim: variants.trims[0].name });
     expect(cfg.prices.net_total).toBeLessThan(cfg.prices.total);
 
-    const paints = await call("list_options", { config_id: cfg.config_id, category: "exterior", only_selectable: true });
+    const paints = await call("list_options", { config_id: cfg.config_id, category: "paint", only_selectable: true });
     const paint = paints.options.find((o: { price: number | null }) => (o.price ?? 0) > 0);
     const change = await call("change_options", { config_id: cfg.config_id, add: [paint.code] });
     expect(change.price_change).toBeCloseTo(paint.price, 2);
 
     const exported = await call("export_code", { config_id: cfg.config_id });
     expect(exported.configurator_url).toMatch(/^https:\/\/www\.volkswagen-nutzfahrzeuge\.de\/de\/konfigurator\.html\/__app\//);
-    console.log(`VW Code: ${exported.vw_code} (${exported.model}, ${exported.total_price} €)\n${exported.configurator_url}`);
+    console.log(`VW Code: ${exported.code} (${exported.model}, ${exported.total_price} €)\n${exported.configurator_url}`);
 
-    const imported = await call("import_code", { code: exported.vw_code });
+    const imported = await call("import_code", { code: exported.code });
     expect(imported.brand).toBe("vwn");
     expect(imported.prices.total).toBe(change.price_after);
   });

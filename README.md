@@ -46,17 +46,20 @@ claude mcp add vw-configurator -- node /absolute/path/to/vw-cc-mcp/dist/index.js
 
 | Tool | What it does |
 |---|---|
-| `list_models` | Model lines of both brands with starting price, fuel types, trims |
-| `list_variants` | Trims of a model and their engines/gearboxes with price and power |
-| `start_configuration` | New configuration from a trim (optionally a specific engine) → `config_id` |
-| `list_options` | Paints, interiors, wheels, packages, options, accessories; filter by category, text, budget |
+| `list_models` | Model lines of all enabled brands with starting price, fuel types, trims |
+| `list_variants` | Variants of a model (grouped by trim) with `variant_id`, price, power, gearbox |
+| `start_configuration` | New configuration from a `variant_id` (or carline + trim + optional `model_code`) → `config_id` |
+| `list_options` | Options by category (`paint`, `interior`, `wheels`, `packages`, `options`, `accessories`, `standard`); filter by text, budget |
 | `get_option` | Details of one option, package contents |
-| `change_options` | Add/remove options; reports what the backend changed on its own; `dry_run` previews |
-| `get_summary` | Model, colours, options, price breakdown, efficiency/WLTP, technical data |
-| `export_code` | Save with VW and get a link that opens the car in the official configurator (plus its VW Code) |
-| `import_code` | Load a VW Code into an editable configuration |
+| `change_options` | Add/remove options; reports what the backend changed on its own and any `choices_required`; `dry_run` previews |
+| `get_summary` | Model, colours, options, price breakdown, performance, efficiency/WLTP, technical data |
+| `export_code` | Save with the manufacturer and get a link that opens the car in the official configurator (plus its `code`, e.g. a VW Code) |
+| `import_code` | Load a code into an editable configuration; `brand` is optional and otherwise detected |
 | `compare_configurations` | Side-by-side comparison of two or more configurations |
 | `list_configurations` | Configurations in the current session |
+
+Prices are numbers in the market currency (each response names it in
+`currency`), incl. VAT.
 
 Example prompt: *"Configure a Golf GTI in a metallic paint with 19-inch wheels
 and IQ.DRIVE, stay under 52,000 €, and give me a link to it."*
@@ -70,6 +73,9 @@ and IQ.DRIVE, stay under 52,000 €, and give me a link to it."*
 - `replaced`: the previous paint, interior or wheel choice.
 - `standard_replaced` / `standard_restored`: standard parts swapped for the
   versions included with a package or wheel option. Nothing is lost.
+
+`choices_required` lists picks the user has to make before a change can go
+through. It is always empty for Volkswagen, whose backend decides on its own.
 
 Configurations live in memory while the server runs. Export one to keep it.
 VW Codes are valid for about six months; links carry the configuration itself
