@@ -1,4 +1,5 @@
 import type {
+  Brief,
   ChangeOutcome,
   ChangeRequest,
   ExportResult,
@@ -44,6 +45,8 @@ export interface ConfiguratorBackend<S = unknown> {
   /** Applies all changes or none. With dryRun the returned state is a preview. */
   change(state: S, req: ChangeRequest): Promise<ChangeOutcome<S>>;
   summary(state: S, opts?: { technical?: boolean }): Promise<Summary>;
+  /** Model name and total without any requests. */
+  brief(state: S): Brief;
 
   /** Stores the configuration with the brand and returns its code and link. */
   exportCode(state: S): Promise<ExportResult>;

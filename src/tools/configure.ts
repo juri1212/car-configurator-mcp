@@ -30,7 +30,7 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
     {
       title: "Start a configuration",
       description:
-        "Start a new configuration from a variant's base configuration. Pass variant_id from list_variants, or (Volkswagen) carline + trim with an optional model_code. Returns a config_id and a summary.",
+        "Start a new configuration from a variant's base configuration. Pass variant_id from list_variants, or carline + trim (Porsche: model series) with an optional model_code. Returns a config_id and a summary.",
       inputSchema: {
         variant_id: z.string().optional().describe("Variant from list_variants"),
         carline: z.string().optional().describe('Instead of variant_id: carline key or name, e.g. "Golf"'),
@@ -55,7 +55,7 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
         throw new Error("Pass variant_id, or carline and trim");
       }
       const summary = await backend.summary(opened.state);
-      const session = sessions.create(backend.key, opened.state, label?.trim() || opened.label, snapshot(summary));
+      const session = sessions.create(backend.key, opened.state, label?.trim() || opened.label, snapshot(backend, opened.state));
       return { config_id: session.id, brand: session.brand, label: session.label, ...summary };
     }),
   );
@@ -115,7 +115,7 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
     {
       title: "Add or remove options",
       description:
-        "Add and/or remove options (paint, interior, wheels, packages, options). To change paint or interior, just add the new one. The configurator backend keeps the car buildable and may add or remove other options; those are reported under side_effects: added/removed are real extra changes to tell the user about; replaced is the previous paint/interior/wheel choice; standard_replaced/standard_restored are standard parts swapped for package versions (not losses). choices_required lists picks the user has to make (ask them, then add the chosen code). With dry_run=true nothing is saved, so you can preview the effect and price.",
+        "Add and/or remove options (paint, interior, wheels, packages, options). To change paint or interior, just add the new one. The configurator backend keeps the car buildable and may add or remove other options; those are reported under side_effects: added/removed are real extra changes to tell the user about; replaced is the previous paint/interior/wheel choice; standard_replaced/standard_restored are standard parts swapped for package versions (not losses). choices_required lists picks the user has to make; where the backend already applied a default, chosen names it (tell the user, and add another choice's code if they want a different one). Codes in add that are choices of another added option are used as that pick. With dry_run=true nothing is saved, so you can preview the effect and price.",
       inputSchema: {
         config_id: configId,
         add: z.array(z.string()).optional().describe("Option codes to add"),
@@ -141,7 +141,7 @@ export function registerConfigureTools(server: McpServer, ctx: ToolContext) {
         };
       }
 
-      if (!dry_run) sessions.update(s, outcome.state, snapshot(await backend.summary(outcome.state)));
+      if (!dry_run) sessions.update(s, outcome.state, snapshot(backend, outcome.state));
       return {
         config_id: s.id,
         dry_run,

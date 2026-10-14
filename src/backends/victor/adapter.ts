@@ -1,5 +1,6 @@
 import type { ConfiguratorBackend } from "../../core/backend.js";
 import type {
+  Brief,
   ChangeOutcome,
   ChangeRequest,
   ExportResult,
@@ -189,6 +190,10 @@ export class VictorBackend implements ConfiguratorBackend<VictorState> {
 
   async summary(s: VictorState, opts: { technical?: boolean } = {}): Promise<Summary> {
     return summarise(s.vc, s.catalogue, opts);
+  }
+
+  brief(s: VictorState): Brief {
+    return { model: (s.vc.modelLongName ?? s.vc.modelName).trim(), total: totalPrice(s.vc) };
   }
 
   async exportCode(s: VictorState): Promise<ExportResult> {

@@ -65,7 +65,7 @@ export function registerCodeTools(server: McpServer, ctx: ToolContext) {
       title: "Import code",
       description: `Load a ${names} (from ${hosts(ctx)} or export_code) into a new configuration that can be inspected and changed. The brand is detected from the code unless given. If the stored vehicle can no longer be built as-is, the backend adjusts it and the changes are reported.`,
       inputSchema: {
-        code: z.string().describe("Code, e.g. VC6NTLKS"),
+        code: z.string().describe("Code, e.g. VC6NTLKS, or a porsche-code.com link"),
         brand: brandArg(ctx, "Brand the code belongs to"),
         label: z.string().optional(),
       },
@@ -75,7 +75,7 @@ export function registerCodeTools(server: McpServer, ctx: ToolContext) {
       const { backend, code: c } = await codeBackend(ctx, code, brand);
       const imported = await backend.importCode(c);
       const summary = await backend.summary(imported.state, { technical: false });
-      const session = sessions.create(backend.key, imported.state, label?.trim() || imported.label, snapshot(summary), c);
+      const session = sessions.create(backend.key, imported.state, label?.trim() || imported.label, snapshot(backend, imported.state), c);
       return {
         config_id: session.id,
         brand: session.brand,
