@@ -1,7 +1,7 @@
 {
   "name": "vw-cc-mcp",
   "version": "0.1.0",
-  "description": "MCP server for the Volkswagen car and commercial vehicle configurators (volkswagen.de, volkswagen-nutzfahrzeuge.de)",
+  "description": "MCP server for the Volkswagen, Volkswagen Nutzfahrzeuge and Porsche configurators (volkswagen.de, volkswagen-nutzfahrzeuge.de, configurator.porsche.com)",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

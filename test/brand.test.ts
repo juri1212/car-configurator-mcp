@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveBrand, resolveBrands } from "../src/brand.js";
+import { resolveBrand, resolveBrands } from "../src/backends/victor/brand.js";
 import { connectTestServer } from "./helpers.js";
 
 describe("brand", () => {

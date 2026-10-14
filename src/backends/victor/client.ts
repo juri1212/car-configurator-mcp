@@ -1,3 +1,4 @@
+import { Throttle } from "../../core/throttle.js";
 import type {
   ConfigResponse,
   ModelsOverview,
@@ -62,14 +63,12 @@ export class VictorClient {
   private readonly origin: string;
   private readonly site: string;
   private readonly fetchFn: typeof fetch;
-  private readonly minGap: number;
+  private readonly throttle: Throttle;
   private readonly log: (message: string) => void;
 
   private initPromise?: Promise<void>;
   private cacheKey?: { value: string; fetchedAt: number };
   private overviewCache?: { cacheKey: string; data: ModelsOverview };
-  private queue: Promise<unknown> = Promise.resolve();
-  private lastRequestAt = 0;
 
   constructor(options: VictorClientOptions = {}) {
     this.apiKey = options.apiKey;
@@ -77,7 +76,7 @@ export class VictorClient {
     this.origin = options.origin ?? DEFAULT_ORIGIN;
     this.site = (options.site ?? DEFAULT_SITE).replace(/\/$/, "");
     this.fetchFn = options.fetch ?? fetch;
-    this.minGap = options.minRequestGapMs ?? MIN_REQUEST_GAP_MS;
+    this.throttle = new Throttle(options.minRequestGapMs ?? MIN_REQUEST_GAP_MS);
     this.log = options.log ?? (() => {});
   }
 
@@ -217,7 +216,7 @@ export class VictorClient {
       if (opts.withTenant !== false) params.set("tenant", this.tenant!);
       for (const [k, v] of Object.entries(opts.query ?? {})) params.set(k, v);
       if (opts.withCacheKey) params.set("cacheKey", await this.getCacheKey());
-      return this.throttled(() => this.send<T>(method, path, params, opts.body));
+      return this.throttle.run(() => this.send<T>(method, path, params, opts.body));
     };
 
     try {
@@ -255,21 +254,6 @@ export class VictorClient {
     } catch {
       throw new VictorError(`Invalid JSON from ${path}`, res.status, path);
     }
-  }
-
-  /** Runs requests one after another with a small gap, to stay polite. */
-  private throttled<T>(fn: () => Promise<T>): Promise<T> {
-    const run = this.queue.then(async () => {
-      const wait = this.lastRequestAt + this.minGap - Date.now();
-      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-      try {
-        return await fn();
-      } finally {
-        this.lastRequestAt = Date.now();
-      }
-    });
-    this.queue = run.catch(() => {});
-    return run;
   }
 }
 
