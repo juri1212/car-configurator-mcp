@@ -1,53 +1,35 @@
 import { randomBytes } from "node:crypto";
-import type { BrandKey } from "./brand.js";
-import type { VehicleCatalogue, VehicleConfiguration } from "./victor/types.js";
-import { totalPrice } from "./configuration.js";
+
+/** What lists and exports show without asking the backend. */
+export interface Snapshot {
+  model: string;
+  total_price: number | null;
+}
 
 export interface Session {
   id: string;
-  /** Configurator the configuration belongs to; all its requests go there. */
-  brand: BrandKey;
+  /** Backend the configuration belongs to; all its requests go there. */
+  brand: string;
   label: string;
-  vehicleConfiguration: VehicleConfiguration;
-  catalogue: VehicleCatalogue;
+  /** The backend's own configuration state, handed back to it unchanged. */
+  state: unknown;
+  snapshot: Snapshot;
   createdAt: Date;
   updatedAt: Date;
-  /** Last exported VW Code and its configurator link, if any. */
-  code?: { value: string; url: string; exportedAt: Date };
+  /** Last exported code and its configurator link, if any. */
+  code?: { value: string; url: string; expires: string | null; exportedAt: Date };
   importedFrom?: string;
-}
-
-/** "Der Golf Style", but "Der Golf GTI" rather than "Der Golf GTI GTI". */
-function defaultLabel(vc: VehicleConfiguration): string {
-  const base = (vc.salesgroupName ?? vc.carlineName ?? "").trim();
-  const trim = vc.equipmentLine?.trim();
-  return trim && !base.toLowerCase().endsWith(trim.toLowerCase()) ? `${base} ${trim}` : base;
 }
 
 export class SessionStore {
   private sessions = new Map<string, Session>();
 
-  create(
-    brand: BrandKey,
-    vc: VehicleConfiguration,
-    catalogue: VehicleCatalogue,
-    label?: string,
-    importedFrom?: string,
-  ): Session {
+  create(brand: string, state: unknown, label: string, snapshot: Snapshot, importedFrom?: string): Session {
     let id: string;
     do id = `cfg_${randomBytes(3).toString("hex")}`;
     while (this.sessions.has(id));
     const now = new Date();
-    const session: Session = {
-      id,
-      brand,
-      label: label?.trim() || defaultLabel(vc),
-      vehicleConfiguration: vc,
-      catalogue,
-      createdAt: now,
-      updatedAt: now,
-      importedFrom,
-    };
+    const session: Session = { id, brand, label, state, snapshot, createdAt: now, updatedAt: now, importedFrom };
     this.sessions.set(id, session);
     return session;
   }
@@ -63,9 +45,9 @@ export class SessionStore {
     return session;
   }
 
-  update(session: Session, vc: VehicleConfiguration, catalogue: VehicleCatalogue): void {
-    session.vehicleConfiguration = vc;
-    session.catalogue = catalogue;
+  update(session: Session, state: unknown, snapshot: Snapshot): void {
+    session.state = state;
+    session.snapshot = snapshot;
     session.updatedAt = new Date();
     // A code describes the state it was exported from.
     session.code = undefined;
@@ -80,10 +62,10 @@ export class SessionStore {
       config_id: s.id,
       brand: s.brand,
       label: s.label,
-      model: (s.vehicleConfiguration.modelLongName ?? s.vehicleConfiguration.modelName)?.trim(),
-      total_price: totalPrice(s.vehicleConfiguration),
+      model: s.snapshot.model,
+      total_price: s.snapshot.total_price,
       configurator_url: s.code?.url ?? null,
-      vw_code: s.code?.value ?? null,
+      code: s.code?.value ?? null,
       imported_from: s.importedFrom ?? null,
       updated_at: s.updatedAt.toISOString(),
     }));

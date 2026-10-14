@@ -39,9 +39,10 @@ describe("MCP server", () => {
     expect(startCall.query.get("trimName")).toBe("EDITION 50");
     expect(startCall.query.get("cacheKey")).toBe("test-cache-key");
 
+    expect(started.prices.currency).toBe("EUR");
     const id = started.config_id;
     const preview = await call("change_options", { config_id: id, add: ["GPF3PF3"], dry_run: true });
-    expect(preview).toMatchObject({ dry_run: true, saved: false, price_change: 405 });
+    expect(preview).toMatchObject({ dry_run: true, saved: false, price_change: 405, choices_required: [] });
     expect((await call("get_summary", { config_id: id })).prices.total).toBe(29525);
 
     const changed = await call("change_options", { config_id: id, add: ["gpf3pf3"] });
@@ -54,14 +55,14 @@ describe("MCP server", () => {
     expect(summary.technical_data).toBeDefined();
 
     const exported = await call("export_code", { config_id: id });
-    expect(exported).toMatchObject({ vw_code: "VTEST123" });
+    expect(exported).toMatchObject({ code: "VTEST123" });
     expect(exported.configurator_url).toBe(
       "https://www.volkswagen.de/de/konfigurator.html/__app/route:configure.app?buildabilityStatus-app=buildable&tenant-app=private&carlineId-app=30204&salesGroupId-app=37057&trimName-app=EDITION+50&modelId-app=AE14AV%24MAAUE50%24GWS3WS3%24GYOSYOS&modelVersion-app=0&modelYear-app=2027&exteriorId-app=F14+6U6U&interiorId-app=F56+++++FJ&options-app=GPF3PF3&category-app=private",
     );
     expect(exported.expires).toBeTruthy();
 
     const list = await call("list_configurations");
-    expect(list[0]).toMatchObject({ config_id: id, vw_code: "VTEST123", configurator_url: exported.configurator_url, total_price: 29930 });
+    expect(list[0]).toMatchObject({ config_id: id, code: "VTEST123", configurator_url: exported.configurator_url, total_price: 29930 });
   });
 
   it("does not save anything when a step fails", async () => {
@@ -134,6 +135,14 @@ describe("MCP server", () => {
     expect((await call("import_code", { code: "VLCQNLFL" })).brand).toBe("vw");
   });
 
+  it("imports into the brand given", async () => {
+    const calls: RecordedCall[] = [];
+    const { call } = await connectTestServer(calls);
+    expect((await call("import_code", { code: "VBUZZ001", brand: "vwn" })).brand).toBe("vwn");
+    // No carline detection needed: no overview request.
+    expect(calls.some((c) => c.path === "/viso/catalogue/models/overview")).toBe(false);
+  });
+
   it("compares configurations", async () => {
     const { call } = await connectTestServer();
     const a = await call("start_configuration", { carline: "Polo", trim: "EDITION 50", label: "A" });
@@ -142,5 +151,29 @@ describe("MCP server", () => {
     expect(cmp.configurations).toHaveLength(2);
     expect(cmp.configurations[1].options_only_here.map((o: { code: string }) => o.code)).toContain("GPF3PF3");
     expect(cmp.configurations[0].power).toBe("70 kW (95 PS)");
+    expect(cmp.configurations[0]).toHaveProperty("top_speed");
+    expect(cmp.configurations[0]).not.toHaveProperty("Höchstgeschwindigkeit");
+  });
+
+  it("starts from a variant_id", async () => {
+    const calls: RecordedCall[] = [];
+    const { call } = await connectTestServer(calls);
+    const variants = await call("list_variants", { carline: "Polo" });
+    const engine = variants.trims.find((t: { name: string }) => t.name === "EDITION 50").engines[0];
+    const started = await call("start_configuration", { variant_id: engine.variant_id });
+    expect(started.brand).toBe("vw");
+    const q = calls.find((c) => c.path === "/vcso/configStart")!.query;
+    expect([q.get("carlineKey"), q.get("trimName"), q.get("modelKey")]).toEqual(["30204", "EDITION 50", engine.model_code]);
+    expect((await call("start_configuration", { variant_id: "nope" })).error).toMatch(/Unknown variant_id/);
+    expect((await call("start_configuration", { carline: "Polo" })).error).toMatch(/variant_id, or carline and trim/);
+  });
+
+  it("filters options by shared category", async () => {
+    const { call } = await connectTestServer();
+    const { config_id } = await call("start_configuration", { carline: "Polo", trim: "EDITION 50" });
+    const packages = await call("list_options", { config_id, category: "packages" });
+    expect(packages.currency).toBe("EUR");
+    expect(packages.options.map((o: { code: string }) => o.code)).toContain("GPF3PF3");
+    expect((await call("list_options", { config_id, category: "exterior" })).error).toBeDefined();
   });
 });

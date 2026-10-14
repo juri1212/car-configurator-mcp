@@ -1,4 +1,15 @@
 import type {
+  Adjustment,
+  ChangeDiff,
+  ChangedOption,
+  Efficiency,
+  OptionCategory,
+  OptionFilter,
+  OptionView,
+  Summary,
+} from "../../core/types.js";
+import { powerOf } from "./catalog.js";
+import type {
   CategoryKey,
   ConfigResponse,
   Feature,
@@ -6,7 +17,7 @@ import type {
   SolutionCandidate,
   VehicleCatalogue,
   VehicleConfiguration,
-} from "./victor/types.js";
+} from "./types.js";
 
 export const OPTION_CATEGORIES: CategoryKey[] = [
   "exterior",
@@ -35,6 +46,40 @@ export function grossPrice(prices: Price[] | null | undefined): number | null {
   const p = prices?.find((p) => p.vatIncluded) ?? prices?.find((p) => p.type === "Gross") ?? prices?.[0];
   return p?.price ?? null;
 }
+
+/** Currency of a price list; the backends only sell in EUR so far. */
+export function currencyOf(prices: Price[] | null | undefined): string {
+  return prices?.[0]?.currency ?? "EUR";
+}
+
+/** Maps a Victor category onto the shared option categories. Packages sit among the options. */
+export function optionCategory(category: CategoryKey, feature?: Feature): OptionCategory {
+  switch (category) {
+    case "exterior":
+      return "paint";
+    case "interior":
+      return "interior";
+    case "wheel":
+    case "wheelOption":
+      return "wheels";
+    case "option":
+      return feature?.packageFeatures?.length ? "packages" : "options";
+    case "accessories":
+      return "accessories";
+    case "standardEquipment":
+      return "standard";
+  }
+}
+
+const SOURCE_CATEGORIES: Record<OptionCategory, CategoryKey[]> = {
+  paint: ["exterior"],
+  interior: ["interior"],
+  wheels: ["wheel", "wheelOption"],
+  packages: ["option"],
+  options: ["option"],
+  accessories: ["accessories"],
+  standard: ["standardEquipment"],
+};
 
 /** Price excl. VAT, if the backend sends one (commercial vehicles only). */
 export function netPrice(prices: Price[] | null | undefined): number | null {
@@ -76,22 +121,6 @@ export function totalPrice(vc: VehicleConfiguration): number | null {
   return grossPrice(vc.configurationPrice?.total);
 }
 
-export interface OptionView {
-  code: string;
-  name: string;
-  price: number | null;
-  category?: CategoryKey;
-  group?: string;
-  selected: boolean;
-  /** Only set when the option is standard equipment. */
-  standard?: true;
-  /** Packages this option is part of. */
-  in_packages?: string[];
-  /** Features contained, if this is a package. */
-  contains?: { code: string; name: string }[];
-  colours?: { element: string; color: string }[];
-}
-
 export function optionView(
   feature: Feature,
   features: Map<string, Feature>,
@@ -102,7 +131,7 @@ export function optionView(
     code: feature.code,
     name: feature.name ?? feature.code,
     price: grossPrice(feature.prices),
-    category: placement?.category,
+    category: placement && optionCategory(placement.category, feature),
     group: placement?.group,
     selected: feature.isIncluded,
   };
@@ -119,20 +148,13 @@ export function optionView(
   return view;
 }
 
-export interface OptionFilter {
-  category?: CategoryKey;
-  search?: string;
-  onlySelectable?: boolean;
-  maxTotalPrice?: number;
-}
-
 export function listOptions(
   catalogue: VehicleCatalogue,
   currentTotal: number | null,
   filter: OptionFilter = {},
 ): OptionView[] {
   const features = featureIndex(catalogue);
-  const categories = filter.category ? [filter.category] : OPTION_CATEGORIES;
+  const categories = filter.category ? SOURCE_CATEGORIES[filter.category] : OPTION_CATEGORIES;
   const search = filter.search?.toLowerCase();
   const seen = new Set<string>();
   const result: OptionView[] = [];
@@ -142,6 +164,7 @@ export function listOptions(
       for (const code of group.featureCodes) {
         const f = features.get(code);
         if (!f || seen.has(code) || !f.isVisible) continue;
+        if (filter.category && optionCategory(category, f) !== filter.category) continue;
         seen.add(code);
         if (search && !`${f.name ?? ""} ${f.code} ${group.name}`.toLowerCase().includes(search)) continue;
         if (filter.onlySelectable && (f.isIncluded || f.isStandard)) continue;
@@ -154,34 +177,6 @@ export function listOptions(
     }
   }
   return result;
-}
-
-export interface ChangedOption {
-  code: string;
-  name: string;
-  price: number | null;
-}
-
-export interface ChangeDiff {
-  applied: boolean;
-  requested: { add: string[]; remove: string[] };
-  /** Requested changes the backend did not carry out. */
-  not_applied: { add: string[]; remove: string[] };
-  /** Changes the backend made on top of the request, to keep the car buildable. */
-  side_effects: {
-    added: ChangedOption[];
-    removed: ChangedOption[];
-    /** Previous choice in a pick-one category (paint, interior, wheels) that the new choice replaced. */
-    replaced: ChangedOption[];
-    /** Standard parts swapped for the versions that come with the new selection (no action needed). */
-    standard_replaced: string[];
-    /** Standard parts that return because a selection was removed. */
-    standard_restored: string[];
-  };
-  conflict_resolved: boolean;
-  price_before: number | null;
-  price_after: number | null;
-  price_change: number | null;
 }
 
 export function diffConfigurations(
@@ -248,6 +243,7 @@ export function diffConfigurations(
         .filter((c) => afterFeatures.get(c)!.isStandard)
         .map((c) => afterFeatures.get(c)!.name ?? c),
     },
+    choices_required: [],
     conflict_resolved: !!after.validationData?.conflicted,
     price_before: priceBefore,
     price_after: priceAfter,
@@ -256,7 +252,7 @@ export function diffConfigurations(
 }
 
 /** Describes a solution candidate in plain terms (used for error hints). */
-export function describeCandidate(c: SolutionCandidate) {
+export function describeCandidate(c: SolutionCandidate): Adjustment {
   return {
     add: (c.addedFeatures ?? []).map((f) => `${f.code} ${f.name ?? ""}`.trim()),
     remove: (c.removedFeatures ?? []).map((f) => `${f.code} ${f.name ?? ""}`.trim()),
@@ -277,7 +273,7 @@ function simplifyTechnicalData(vc: VehicleConfiguration) {
 type Valued = { unit?: string; value?: number | string };
 const fmt = (v?: Valued) => (v?.value !== undefined ? `${v.value} ${v.unit ?? ""}`.trim() : undefined);
 
-function efficiency(vc: VehicleConfiguration) {
+function efficiency(vc: VehicleConfiguration): Efficiency | undefined {
   const label = vc.cleoResponse?.labelData as
     | {
         generalVehicleData?: {
@@ -304,7 +300,19 @@ function efficiency(vc: VehicleConfiguration) {
   };
 }
 
-export function summarise(vc: VehicleConfiguration, catalogue: VehicleCatalogue, opts: { technical?: boolean } = {}) {
+/** Overview model key of a configuration; this is its variant_id. */
+export function variantId(vc: VehicleConfiguration): string {
+  return [vc.carlineKey, vc.salesgroupKey, vc.modelKey, vc.modelYear, vc.modelVersion].join("_");
+}
+
+const TOP_SPEED = "Höchstgeschwindigkeit";
+const ACCELERATION = "Beschleunigung 0-100 km/h";
+
+export function summarise(
+  vc: VehicleConfiguration,
+  catalogue: VehicleCatalogue,
+  opts: { technical?: boolean } = {},
+): Summary {
   const features = featureIndex(catalogue);
   const placement = placementIndex(catalogue);
   const p = vc.configurationPrice ?? {};
@@ -328,6 +336,8 @@ export function summarise(vc: VehicleConfiguration, catalogue: VehicleCatalogue,
 
   const colour = (f?: Feature) =>
     f ? { code: f.code, name: f.name, price: grossPrice(features.get(f.code)?.prices ?? f.prices) } : null;
+  const technical = simplifyTechnicalData(vc);
+  const tech = (key: string) => Object.values(technical).find((g) => g[key])?.[key] ?? null;
 
   return {
     model: {
@@ -337,12 +347,13 @@ export function summarise(vc: VehicleConfiguration, catalogue: VehicleCatalogue,
       name: (vc.modelLongName ?? vc.modelName).trim(),
       model_code: vc.modelKey,
       model_year: vc.modelYear,
+      variant_id: variantId(vc),
     },
     exterior: colour(vc.exterior),
     interior: colour(vc.interior),
     options,
     prices: {
-      currency: "EUR",
+      currency: currencyOf(p.total),
       vat_included: true,
       base: grossPrice(p.model),
       colour: grossPrice(p.color),
@@ -351,9 +362,12 @@ export function summarise(vc: VehicleConfiguration, catalogue: VehicleCatalogue,
       total: grossPrice(p.total),
       ...(netPrice(p.total) !== null ? { net_total: netPrice(p.total) } : {}),
     },
+    performance: {
+      power: powerOf(vc.modelFilters),
+      top_speed: tech(TOP_SPEED),
+      acceleration_0_100: tech(ACCELERATION),
+    },
     efficiency: efficiency(vc),
-    ...(opts.technical ? { technical_data: simplifyTechnicalData(vc) } : {}),
+    ...(opts.technical ? { technical_data: technical } : {}),
   };
 }
-
-export type Summary = ReturnType<typeof summarise>;
