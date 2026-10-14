@@ -87,6 +87,8 @@ export interface OptionView {
 
 export type OptionDetails = Omit<OptionView, "in_packages"> & {
   in_packages?: { code: string; name: string }[];
+  /** Plain text, where the backend has one. */
+  description?: string;
 };
 
 export interface OptionFilter {
@@ -109,10 +111,14 @@ export interface ChangedOption {
   price: number | null;
 }
 
-/** A pick the user has to make before a change can be applied. */
+/**
+ * A pick the user has to make. If the backend applied the change with a
+ * default pick, `chosen` names it; adding another choice's code switches.
+ */
 export interface ChoiceRequired {
   id: string;
   name?: string;
+  chosen?: ChangedOption;
   choices: ChangedOption[];
 }
 
@@ -196,6 +202,12 @@ export interface Efficiency {
   electric_range_wltp?: string;
   energy_costs_15000km?: string;
   vehicle_tax_per_year?: string;
+}
+
+/** What session lists show; cheap to compute from the state alone. */
+export interface Brief {
+  model: string;
+  total: number | null;
 }
 
 export interface Summary {

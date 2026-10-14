@@ -1,3 +1,5 @@
+import { enabledBrands } from "../../brands.js";
+
 export type BrandKey = "vw" | "vwn";
 
 export const BRAND_KEYS: readonly BrandKey[] = ["vw", "vwn"];
@@ -67,15 +69,8 @@ export function resolveBrand(key: BrandKey = "vw", env: Env = process.env): Bran
   };
 }
 
-/** The brands to serve: both unless VW_BRAND limits it to one ("vw" or "vwn"). */
+/** The Victor brands to serve, out of those VW_BRAND enables (all by default). */
 export function resolveBrands(env: Env = process.env): Brand[] {
-  const raw = env.VW_BRAND?.trim().toLowerCase();
-  if (!raw || raw === "all") return BRAND_KEYS.map((k) => resolveBrand(k, env));
-  const keys = [...new Set(raw.split(/[\s,]+/).filter(Boolean))];
-  for (const k of keys) {
-    if (!BRAND_KEYS.includes(k as BrandKey)) {
-      throw new Error(`Unknown VW_BRAND "${env.VW_BRAND}" (use "vw", "vwn" or leave it unset for both)`);
-    }
-  }
-  return keys.map((k) => resolveBrand(k as BrandKey, env));
+  const enabled = enabledBrands(env);
+  return BRAND_KEYS.filter((k) => enabled.includes(k)).map((k) => resolveBrand(k, env));
 }

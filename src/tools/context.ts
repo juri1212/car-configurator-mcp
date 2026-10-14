@@ -1,7 +1,6 @@
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ConfiguratorBackend } from "../core/backend.js";
-import type { Summary } from "../core/types.js";
 import type { Session, SessionStore, Snapshot } from "../session.js";
 
 export type Backend = ConfiguratorBackend;
@@ -54,8 +53,9 @@ export function codeNames(ctx: ToolContext): string {
   return [...new Set(ctx.backends.map((b) => b.codeName))].join(" / ");
 }
 
-export function snapshot(summary: Summary): Snapshot {
-  return { model: summary.model.name, total_price: summary.prices.total };
+export function snapshot(backend: Backend, state: unknown): Snapshot {
+  const { model, total } = backend.brief(state);
+  return { model, total_price: total };
 }
 
 export function json(data: unknown): CallToolResult {

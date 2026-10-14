@@ -19,7 +19,7 @@ export function registerCatalogTools(server: McpServer, ctx: ToolContext) {
       title: "List models",
       description: `List the model lines (carlines) available in the configurator (${hosts(ctx)}), with brand, starting price (market currency, incl. VAT), fuel types and trims. Use the carline key or name with list_variants.`,
       inputSchema: {
-        query: z.string().optional().describe('Filter by name, e.g. "golf" or "ID."'),
+        query: z.string().optional().describe('Filter by name, e.g. "golf", "ID." or "911"'),
         brand: brandArg(ctx),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
@@ -38,7 +38,7 @@ export function registerCatalogTools(server: McpServer, ctx: ToolContext) {
       description:
         "List the variants of a model line, grouped by trim where the brand has trims, with prices, power and fuel type. Pass a variant's variant_id to start_configuration.",
       inputSchema: {
-        carline: z.string().describe('Carline key (e.g. "30600") or name (e.g. "Golf")'),
+        carline: z.string().describe('Carline key (e.g. "30600", "911") or name (e.g. "Golf", "Taycan")'),
         brand: brandArg(ctx),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },

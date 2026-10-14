@@ -3,9 +3,12 @@ import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { PorscheBackend } from "./backends/porsche/adapter.js";
+import { PorscheClient } from "./backends/porsche/client.js";
 import { createVictorBackends } from "./backends/victor/adapter.js";
 import { resolveBrands } from "./backends/victor/brand.js";
 import { VictorClient } from "./backends/victor/client.js";
+import { enabledBrands } from "./brands.js";
 import { SessionStore } from "./session.js";
 import { registerCatalogTools } from "./tools/catalog.js";
 import { registerCodeTools } from "./tools/codes.js";
@@ -54,9 +57,21 @@ async function main() {
         log: (m) => log(`${brand.key}: ${m}`),
       }),
   );
-  const server = createServer(victor);
+  const backends: Backend[] = [...victor];
+  if (enabledBrands().includes("porsche")) {
+    backends.push(
+      new PorscheBackend(
+        new PorscheClient({
+          locale: process.env.PORSCHE_LOCALE,
+          modelsUrl: process.env.PORSCHE_MODELS_URL,
+          log: (m) => log(`porsche: ${m}`),
+        }),
+      ),
+    );
+  }
+  const server = createServer(backends);
   await server.connect(new StdioServerTransport());
-  log(`ready (v${VERSION}, ${victor.map((b) => b.name).join(", ")})`);
+  log(`ready (v${VERSION}, ${backends.map((b) => b.name).join(", ")})`);
   // Discover API keys/tenants in the background so the first tool call is faster.
   for (const { key, client } of victor) client.init().then(() => log(`${key}: tenant ${client.tenantKey}`));
 }
