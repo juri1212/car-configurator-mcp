@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { OptionCategory } from "../src/core/types.js";
 import {
   diffConfigurations,
   effectiveConfiguration,
@@ -7,7 +8,7 @@ import {
   netPrice,
   summarise,
   totalPrice,
-} from "../src/configuration.js";
+} from "../src/backends/victor/configuration.js";
 import { id4Start, idBuzzStart, poloStart, poloStepIqDrive } from "./helpers.js";
 
 describe("configuration", () => {
@@ -22,11 +23,22 @@ describe("configuration", () => {
 
   it("lists visible options with selection state, excluding standard equipment", () => {
     const options = listOptions(start.vehicleCatalogue, totalPrice(startVc));
-    expect(options.some((o) => o.category === "standardEquipment")).toBe(false);
+    expect(options.some((o) => o.category === "standard")).toBe(false);
     const paint = options.find((o) => o.code === "F14 3Y3Y")!;
-    expect(paint).toMatchObject({ name: "Crystal Ice Blue Metallic", price: 690, selected: false, category: "exterior" });
+    expect(paint).toMatchObject({ name: "Crystal Ice Blue Metallic", price: 690, selected: false, category: "paint" });
     const iq = options.find((o) => o.code === "GPF3PF3")!;
     expect(iq.contains?.map((c) => c.code)).toEqual(["MGRA8T7", "MSRH6I2", "MAWV6K4"]);
+    expect(iq.category).toBe("packages");
+  });
+
+  it("maps Victor categories onto the shared ones", () => {
+    const total = totalPrice(startVc);
+    const of = (category: OptionCategory) => listOptions(start.vehicleCatalogue, total, { category });
+    expect(of("paint").every((o) => o.category === "paint")).toBe(true);
+    expect(of("packages").map((o) => o.code)).toContain("GPF3PF3");
+    expect(of("options").map((o) => o.code)).not.toContain("GPF3PF3");
+    expect(of("options").every((o) => !o.contains)).toBe(true);
+    expect(of("standard").length).toBeGreaterThan(0);
   });
 
   it("filters options by search, selectability and budget", () => {
@@ -51,6 +63,7 @@ describe("configuration", () => {
     // Standard parts superseded by the package are reported separately, not as removals.
     expect(diff.side_effects.removed).toEqual([]);
     expect(diff.side_effects.standard_replaced.length).toBeGreaterThan(0);
+    expect(diff.choices_required).toEqual([]);
   });
 
   it("reports requested changes the backend did not apply", () => {
@@ -65,6 +78,10 @@ describe("configuration", () => {
     expect(sum.exterior?.name).toBe("Ascotgrau");
     expect(sum.prices.total).toBe(29525);
     expect(sum.efficiency?.co2_class).toBe("D");
+    expect(sum.prices.currency).toBe("EUR");
+    expect(sum.model.variant_id).toBe("30204_37057_AE14AV$MAAUE50$GWS3WS3$GYOSYOS_2027_0");
+    expect(sum.performance.power).toBe("70 kW (95 PS)");
+    expect(sum.performance.top_speed).toMatch(/km\/h/);
     expect(sum).not.toHaveProperty("technical_data");
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VictorClient, errorMessage } from "../src/victor/client.js";
+import { VictorClient, errorMessage } from "../src/backends/victor/client.js";
 
 const json = (status: number, data: unknown) => new Response(JSON.stringify(data), { status });
 

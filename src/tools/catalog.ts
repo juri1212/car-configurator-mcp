@@ -1,49 +1,32 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { BrandKey } from "../brand.js";
-import { listModels, listVariants, matchCarline } from "../catalog.js";
-import type { ModelsOverview, OverviewCarline } from "../victor/types.js";
-import { type Backend, backendsFor, brandArg, handle, hosts, type ToolContext } from "./context.js";
-
-/** Model overviews of the brands to query. One brand failing doesn't hide the others. */
-async function overviews(ctx: ToolContext, brand?: BrandKey) {
-  const results = await Promise.allSettled(
-    backendsFor(ctx, brand).map(async (backend) => ({ backend, overview: await backend.client.modelsOverview() })),
-  );
-  const ok = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-  if (!ok.length) throw (results[0] as PromiseRejectedResult).reason;
-  return ok;
-}
+import { matchCarline } from "../core/match.js";
+import { type Backend, backendsFor, brandArg, eachBackend, handle, hosts, type ToolContext } from "./context.js";
 
 /** Finds a carline across the enabled brands (or just `brand`). */
-export async function findCarline(
-  ctx: ToolContext,
-  query: string,
-  brand?: BrandKey,
-): Promise<{ backend: Backend; overview: ModelsOverview; carline: OverviewCarline }> {
-  const candidates = (await overviews(ctx, brand)).flatMap(({ backend, overview }) =>
-    overview.carlines.map((carline) => ({ key: carline.key, name: carline.name, backend, overview, carline })),
+export async function findCarline(ctx: ToolContext, query: string, brand?: string): Promise<{ backend: Backend; key: string }> {
+  const candidates = (await eachBackend(backendsFor(ctx, brand), (b) => b.listModels())).flatMap(({ backend, value }) =>
+    value.map((m) => ({ key: m.carline, name: m.name, backend })),
   );
   const multi = ctx.backends.length > 1 && !brand;
-  return matchCarline(candidates, query, (c) => `${c.name} (${c.key}${multi ? `, ${c.backend.brand.key}` : ""})`);
+  return matchCarline(candidates, query, (c) => `${c.name} (${c.key}${multi ? `, ${c.backend.key}` : ""})`);
 }
 
 export function registerCatalogTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "list_models",
     {
-      title: "List VW models",
-      description:
-        `List the model lines (carlines) available in the configurator (${hosts(ctx)}), with brand, starting price (EUR, incl. VAT), fuel types and trims. Use the carline key or name with list_variants.`,
+      title: "List models",
+      description: `List the model lines (carlines) available in the configurator (${hosts(ctx)}), with brand, starting price (market currency, incl. VAT), fuel types and trims. Use the carline key or name with list_variants.`,
       inputSchema: {
-        query: z.string().optional().describe('Filter by name, e.g. "golf" or "ID."'),
+        query: z.string().optional().describe('Filter by name, e.g. "golf", "ID." or "911"'),
         brand: brandArg(ctx),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     handle(async ({ query, brand }) =>
-      (await overviews(ctx, brand)).flatMap(({ backend, overview }) =>
-        listModels(overview, query).map((m) => ({ brand: backend.brand.key, ...m })),
+      (await eachBackend(backendsFor(ctx, brand), (b) => b.listModels(query))).flatMap(({ backend, value }) =>
+        value.map((m) => ({ brand: backend.key, ...m })),
       ),
     ),
   );
@@ -51,18 +34,18 @@ export function registerCatalogTools(server: McpServer, ctx: ToolContext) {
   server.registerTool(
     "list_variants",
     {
-      title: "List trims and engines",
+      title: "List variants",
       description:
-        "List the trims of a model line and the engine/gearbox variants of each trim, with prices, power and fuel type. Pass a trim name and optionally a model_code to start_configuration.",
+        "List the variants of a model line, grouped by trim where the brand has trims, with prices, power and fuel type. Pass a variant's variant_id to start_configuration.",
       inputSchema: {
-        carline: z.string().describe('Carline key (e.g. "30600") or name (e.g. "Golf")'),
+        carline: z.string().describe('Carline key (e.g. "30600", "911") or name (e.g. "Golf", "Taycan")'),
         brand: brandArg(ctx),
       },
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     handle(async ({ carline, brand }) => {
-      const { backend, overview, carline: c } = await findCarline(ctx, carline, brand);
-      return { brand: backend.brand.key, carline: c.key, name: c.name, trims: listVariants(overview, c) };
+      const { backend, key } = await findCarline(ctx, carline, brand);
+      return { brand: backend.key, ...(await backend.listVariants(key)) };
     }),
   );
 }

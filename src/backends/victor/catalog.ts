@@ -1,24 +1,11 @@
-import type { ModelsOverview, OverviewCarline, OverviewModel } from "./victor/types.js";
-import { grossPrice } from "./configuration.js";
+import { matchCarline, normalise } from "../../core/match.js";
+import type { ModelLine, Variant, VariantGroup } from "../../core/types.js";
+import type { ModelFilter, ModelsOverview, OverviewCarline, OverviewModel } from "./types.js";
+import { currencyOf, grossPrice } from "./configuration.js";
 
-export interface Engine {
-  model_code: string;
-  model_year: string;
-  name: string;
-  long_name: string;
-  price: number | null;
-  power: string | null;
-  fuel: string | null;
-  gearbox: string | null;
-  drive: string | null;
-}
-
-export interface Trim {
-  name: string;
+export interface Trim extends VariantGroup {
   salesgroup: string;
   salesgroup_name: string;
-  from_price: number | null;
-  engines: Engine[];
 }
 
 /** Splits `<carline>_<salesgroup>_<modelCode>_<modelYear>_<modelVersion>`. */
@@ -27,44 +14,17 @@ export function parseModelKey(key: string) {
   return { carlineKey, salesgroupKey, modelCode, modelYear, modelVersion };
 }
 
-function filterText(model: OverviewModel, type: string): string | null {
-  return model.modelFilters.find((f) => f.type === type)?.text.trim() ?? null;
+export function filterText(filters: ModelFilter[] | undefined, type: string): string | null {
+  return filters?.find((f) => f.type === type)?.text.trim() ?? null;
 }
 
-function trimOf(model: OverviewModel): string | null {
-  return filterText(model, "EquipmentLine");
-}
+const trimOf = (model: OverviewModel) => filterText(model.modelFilters, "EquipmentLine");
 
-const normalise = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/^(der|die|das)\s+/, "")
-    .replace(/^neue\s+/, "")
-    .replace(/[^a-z0-9.]+/g, " ")
-    .trim();
-
-/**
- * Finds a carline by key or (partial) name. Throws with candidates if ambiguous.
- * `describe` names a candidate in error messages.
- */
-export function matchCarline<C extends { key: string; name: string }>(
-  carlines: C[],
-  query: string,
-  describe: (c: C) => string = (c) => `${c.name} (${c.key})`,
-): C {
-  const byKey = carlines.find((c) => c.key === query.trim());
-  if (byKey) return byKey;
-  const q = normalise(query);
-  const exact = carlines.filter((c) => normalise(c.name) === q);
-  if (exact.length === 1) return exact[0];
-  const partial = carlines.filter((c) => normalise(c.name).includes(q));
-  if (partial.length === 1) return partial[0];
-  const names = (exact.length ? exact : partial.length ? partial : carlines).map(describe);
-  throw new Error(
-    partial.length
-      ? `"${query}" matches several models: ${names.join(", ")}`
-      : `No model matches "${query}". Available: ${names.join(", ")}`,
-  );
+/** "70 kW (95 PS)" from the SystemPower filters, else the EnginePower text. */
+export function powerOf(filters: ModelFilter[] | undefined): string | null {
+  const kw = filterText(filters, "SystemPowerKW");
+  const ps = filterText(filters, "SystemPowerPS");
+  return kw ? `${Number(kw)} kW (${ps ? Number(ps) : "?"} PS)` : filterText(filters, "EnginePower");
 }
 
 export function resolveCarline(overview: ModelsOverview, query: string): OverviewCarline {
@@ -76,8 +36,13 @@ function minPrice(prices: (number | null)[]): number | null {
   return valid.length ? Math.min(...valid) : null;
 }
 
-export function listModels(overview: ModelsOverview, query?: string) {
+export function overviewCurrency(overview: ModelsOverview): string {
+  return currencyOf(overview.models[0]?.prices);
+}
+
+export function listModels(overview: ModelsOverview, query?: string): ModelLine[] {
   const q = query ? normalise(query) : undefined;
+  const currency = overviewCurrency(overview);
   return overview.carlines
     .filter((c) => !q || normalise(c.name).includes(q))
     .map((c) => {
@@ -85,9 +50,10 @@ export function listModels(overview: ModelsOverview, query?: string) {
       return {
         carline: c.key,
         name: c.name,
+        currency,
         from_price: minPrice(models.map((m) => grossPrice(m.prices))),
-        fuel_types: [...new Set(models.map((m) => filterText(m, "FuelType")).filter(Boolean))],
-        trims: [...new Set(models.map(trimOf).filter(Boolean))],
+        fuel_types: [...new Set(models.map((m) => filterText(m.modelFilters, "FuelType")).filter((f) => f !== null))],
+        trims: [...new Set(models.map(trimOf).filter((t) => t !== null))],
         variant_count: models.length,
       };
     });
@@ -112,25 +78,47 @@ export function listVariants(overview: ModelsOverview, carline: OverviewCarline)
       };
       trims.set(id, trim);
     }
-    const kw = filterText(model, "SystemPowerKW");
-    const ps = filterText(model, "SystemPowerPS");
-    trim.engines.push({
+    const engine: Variant = {
+      variant_id: model.key,
       model_code: modelCode,
       model_year: modelYear,
       name: model.name.trim(),
       long_name: model.longName.trim(),
       price: grossPrice(model.prices),
-      power: kw ? `${Number(kw)} kW (${ps ? Number(ps) : "?"} PS)` : filterText(model, "EnginePower"),
-      fuel: filterText(model, "FuelType"),
-      gearbox: filterText(model, "Gear"),
+      power: powerOf(model.modelFilters),
+      fuel: filterText(model.modelFilters, "FuelType"),
+      gearbox: filterText(model.modelFilters, "Gear"),
       drive: model.modelMetaData?.driveType ?? null,
-    });
+    };
+    trim.engines.push(engine);
   }
   for (const trim of trims.values()) {
     trim.engines.sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
     trim.from_price = minPrice(trim.engines.map((e) => e.price));
   }
   return [...trims.values()].sort((a, b) => (a.from_price ?? Infinity) - (b.from_price ?? Infinity));
+}
+
+/**
+ * Finds the overview model for a variant id (the model key). The version
+ * segment is ignored if no key matches exactly, so ids built from a
+ * configuration still resolve after a catalogue update.
+ */
+export function findModel(overview: ModelsOverview, variantId: string): OverviewModel | undefined {
+  const id = variantId.trim();
+  const exact = overview.models.find((m) => m.key === id);
+  if (exact) return exact;
+  const prefix = id.split("_").slice(0, 4).join("_");
+  return overview.models.find((m) => m.key.split("_").slice(0, 4).join("_") === prefix);
+}
+
+/** configStart parameters for a variant id. */
+export function startParamsForVariant(overview: ModelsOverview, variantId: string) {
+  const model = findModel(overview, variantId);
+  const trimName = model && trimOf(model);
+  if (!model || !trimName) throw new Error(`Unknown variant_id "${variantId}". Use list_variants to find one.`);
+  const { carlineKey, salesgroupKey, modelCode, modelYear } = parseModelKey(model.key);
+  return { carlineKey, salesgroupKey, trimName, modelCode, modelYear };
 }
 
 /**
