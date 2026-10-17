@@ -1,20 +1,21 @@
-# vw-cc-mcp
+# car-configurator-mcp
 
-An MCP server that lets an AI agent spec a Volkswagen using the
-[volkswagen.de configurator](https://www.volkswagen.de/de/konfigurator.html):
-browse models, trims and engines, add paint/wheels/packages, see prices, WLTP
-and technical data, compare configurations, and export a **link** that opens
-the car in the real configurator (along with its **VW Code**).
+An MCP server that lets an AI agent spec a car using the manufacturers'
+official online configurators: browse models, trims and engines, add
+paint/wheels/packages, see prices, WLTP and technical data, compare
+configurations, and export a **link** that opens the car in the real
+configurator (along with its code, e.g. a **VW Code** or **Porsche Code**).
 
-The same server also covers the
-[Volkswagen Nutzfahrzeuge configurator](https://www.volkswagen-nutzfahrzeuge.de/de.html)
-(ID. Buzz, Multivan, California, Transporter, Caddy, Crafter, Amarok; see
-[Commercial vehicles](#commercial-vehicles)) and the
-[Porsche configurator](https://configurator.porsche.com/de-DE/) (911, 718,
-Taycan, Panamera, Macan, Cayenne; see [Porsche](#porsche)).
+Supported configurators:
+
+| Brand | Configurator | Models |
+|---|---|---|
+| `vw` | [Volkswagen](https://www.volkswagen.de/de/konfigurator.html) | Polo, Golf, T-Roc, Tiguan, ID. family, … |
+| `vwn` | [Volkswagen Nutzfahrzeuge](https://www.volkswagen-nutzfahrzeuge.de/de.html) | ID. Buzz, Multivan, California, Transporter, Caddy, Crafter, Amarok; see [Commercial vehicles](#commercial-vehicles) |
+| `porsche` | [Porsche](https://configurator.porsche.com/de-DE/) | 911, 718, Taycan, Panamera, Macan, Cayenne; see [Porsche](#porsche) |
 
 > Unofficial. This server uses the same undocumented backends as the websites.
-> It can break when VW or Porsche change them. Intended for personal, low-volume use.
+> It can break when the manufacturers change them. Intended for personal, low-volume use.
 
 ## Setup
 
@@ -28,7 +29,7 @@ npm run build
 ### Claude Code
 
 ```sh
-claude mcp add vw-configurator -- node /absolute/path/to/vw-cc-mcp/dist/index.js
+claude mcp add car-configurator -- node /absolute/path/to/car-configurator-mcp/dist/index.js
 ```
 
 ### Claude Desktop / other clients
@@ -36,9 +37,9 @@ claude mcp add vw-configurator -- node /absolute/path/to/vw-cc-mcp/dist/index.js
 ```json
 {
   "mcpServers": {
-    "vw-configurator": {
+    "car-configurator": {
       "command": "node",
-      "args": ["/absolute/path/to/vw-cc-mcp/dist/index.js"]
+      "args": ["/absolute/path/to/car-configurator-mcp/dist/index.js"]
     }
   }
 }
@@ -93,7 +94,7 @@ itself and work as long as VW still offers that model. Porsche links are
 
 | Env var | Default | Purpose |
 |---|---|---|
-| `VW_BRAND` | all | Limit the server to some brands, comma-separated: `vw` (cars, volkswagen.de), `vwn` (commercial vehicles, volkswagen-nutzfahrzeuge.de), `porsche` (configurator.porsche.com) |
+| `BRANDS` | all | Limit the server to some brands, comma-separated: `vw` (cars, volkswagen.de), `vwn` (commercial vehicles, volkswagen-nutzfahrzeuge.de), `porsche` (configurator.porsche.com) |
 | `VW_API_KEY` | discovered | Override the OneAPI key (both brands) |
 | `VW_SITE` / `VWN_SITE` | the brand's site | Market site, used to discover API key and tenant |
 | `VW_TENANT` / `VWN_TENANT` | discovered (`ihdcc-vw-de-de`) / `ihdcc-vwn-de-de` | Override the tenant |
@@ -101,7 +102,8 @@ itself and work as long as VW still offers that model. Porsche links are
 | `PORSCHE_LOCALE` | `de-DE` | Porsche market and language, e.g. `en-GB`, `en-US`, `fr-CH` |
 | `PORSCHE_MODELS_URL` | per locale | porsche.com model overview page that names and prices the models (known for `de-DE`, `en-GB`, `en-US`, `de-CH`, `fr-CH`) |
 
-`VW_*` settings apply to cars, `VWN_*` to commercial vehicles.
+`VW_*` settings apply to Volkswagen cars, `VWN_*` to commercial vehicles.
+`VW_BRAND`, the old name of `BRANDS`, still works.
 
 Only the German market has been tested.
 

@@ -1,5 +1,5 @@
 {
-  "name": "vw-cc-mcp",
+  "name": "car-configurator-mcp",
   "version": "0.1.0",
   "description": "MCP server for the Volkswagen, Volkswagen Nutzfahrzeuge and Porsche configurators (volkswagen.de, volkswagen-nutzfahrzeuge.de, configurator.porsche.com)",
   "main": "dist/index.js",
@@ -8,7 +8,7 @@
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test": "vitest run",
-    "test:live": "VW_LIVE=1 vitest run test/live.test.ts",
+    "test:live": "LIVE=1 vitest run test/live.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "license": "MIT",
@@ -23,7 +23,7 @@
     "vitest": "^5.0.3"
   },
   "bin": {
-    "vw-cc-mcp": "dist/index.js"
+    "car-configurator-mcp": "dist/index.js"
   },
   "files": [
     "dist"

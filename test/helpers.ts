@@ -140,7 +140,7 @@ export const porscheBackend = (calls: RecordedCall[] = []) =>
 
 export async function connectTestServer(
   calls: RecordedCall[] = [],
-  brands: Brand[] = resolveBrands({ VW_BRAND: "vw,vwn" }),
+  brands: Brand[] = resolveBrands({ BRANDS: "vw,vwn" }),
   opts: { porsche?: boolean } = {},
 ) {
   const fetch = fakeFetch(calls);

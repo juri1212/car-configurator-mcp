@@ -1,9 +1,9 @@
-# vw-cc-mcp — Spec
+# car-configurator-mcp — Spec
 
-An MCP server that lets an AI agent spec a Volkswagen or a Porsche through the
-backends of the official configurators: browse models and options, build a
-configuration step by step, and export a **VW Code** or **Porsche Code** that
-loads in the real configurator.
+An MCP server that lets an AI agent spec a car (Volkswagen, Volkswagen
+Nutzfahrzeuge or Porsche) through the backends of the official configurators:
+browse models and options, build a configuration step by step, and export a
+**VW Code** or **Porsche Code** that loads in the real configurator.
 
 Status: v1 implemented 2026-10-10, Porsche added 2026-10-13. Backend behaviour
 below was verified against the live APIs.
@@ -186,7 +186,7 @@ with `carline` + `trim` takes the cheapest model of the matching series unless
 ## Implementation
 
 - TypeScript, `@modelcontextprotocol/sdk`, `zod` (tool inputs), stdio transport, native `fetch`.
-- Brands: `VW_BRAND` enables some of `vw`, `vwn`, `porsche` (default all).
+- Brands: `BRANDS` enables some of `vw`, `vwn`, `porsche` (default all).
   Porsche: `PORSCHE_LOCALE` (default `de-DE`), `PORSCHE_MODELS_URL`.
 - Startup: fetch API key and tenant from the VW config JSONs, per brand.
   `VW_API_KEY` and `VW_TENANT` / `VWN_TENANT` env vars override them. Fetch the cache key and refresh it
@@ -243,10 +243,10 @@ src/
   core/types.ts                # brand-neutral tool output types
   core/match.ts                # carline name matching
   core/throttle.ts             # one request at a time, with a gap
-  brands.ts                    # VW_BRAND: which brands to serve
+  brands.ts                    # BRANDS: which brands to serve
   tools/*.ts                   # catalog, configure, codes, compare (interface only)
   backends/victor/adapter.ts   # VictorBackend implements ConfiguratorBackend
-  backends/victor/brand.ts     # enabled brands (VW_BRAND); site, tenant and wording per brand
+  backends/victor/brand.ts     # enabled brands (BRANDS); site, tenant and wording per brand
   backends/victor/client.ts    # HTTP, key/tenant discovery, cacheKey, throttling
   backends/victor/types.ts     # backend response types
   backends/victor/catalog.ts   # carlines, trims, engines from the overview

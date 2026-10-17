@@ -5,7 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-const live = !!process.env.VW_LIVE;
+const live = !!process.env.LIVE;
 
 describe.skipIf(!live)("live", () => {
   let client: Client;
@@ -123,7 +123,7 @@ describe.skipIf(!live)("live (Porsche)", () => {
       new StdioClientTransport({
         command: "node",
         args: ["dist/index.js"],
-        env: { ...(process.env as Record<string, string>), VW_BRAND: "porsche" },
+        env: { ...(process.env as Record<string, string>), BRANDS: "porsche" },
         stderr: "inherit",
       }),
     );

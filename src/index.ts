@@ -25,7 +25,7 @@ export function createServer(backends: Backend[], sessions = new SessionStore())
   const multi = backends.length > 1;
   const notes = [...new Set(backends.flatMap((b) => (b.notes ? [b.notes] : [])))];
   const server = new McpServer(
-    { name: "vw-cc-mcp", version: VERSION },
+    { name: "car-configurator-mcp", version: VERSION },
     {
       instructions:
         `Spec vehicles through the official configurators: ${brands.join("; ")}. ` +
@@ -46,7 +46,7 @@ export function createServer(backends: Backend[], sessions = new SessionStore())
 }
 
 async function main() {
-  const log = (m: string) => process.stderr.write(`[vw-cc-mcp] ${m}\n`);
+  const log = (m: string) => process.stderr.write(`[car-configurator-mcp] ${m}\n`);
   const victor = createVictorBackends(
     resolveBrands(),
     (brand) =>
@@ -79,7 +79,7 @@ async function main() {
 const entry = process.argv[1] ? realpathSync(process.argv[1]) : "";
 if (entry && import.meta.url === pathToFileURL(entry).href) {
   main().catch((err) => {
-    process.stderr.write(`[vw-cc-mcp] fatal: ${String(err)}\n`);
+    process.stderr.write(`[car-configurator-mcp] fatal: ${String(err)}\n`);
     process.exit(1);
   });
 }
