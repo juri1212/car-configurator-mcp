@@ -14,36 +14,63 @@ Supported configurators:
 | `vwn` | [Volkswagen Nutzfahrzeuge](https://www.volkswagen-nutzfahrzeuge.de/de.html) | ID. Buzz, Multivan, California, Transporter, Caddy, Crafter, Amarok; see [Commercial vehicles](#commercial-vehicles) |
 | `porsche` | [Porsche](https://configurator.porsche.com/de-DE/) | 911, 718, Taycan, Panamera, Macan, Cayenne; see [Porsche](#porsche) |
 
-> Unofficial. This server uses the same undocumented backends as the websites.
-> It can break when the manufacturers change them. Intended for personal, low-volume use.
+Out of the box the server targets the **German market** (prices in EUR,
+German option names for VW). Porsche supports other markets via
+`PORSCHE_LOCALE`; for VW, other markets may work via `VW_SITE` / `VW_TENANT`
+but are untested. See [Configuration](#configuration).
+
+> **Unofficial.** This project is not affiliated with, endorsed by or connected
+> to Volkswagen AG, Porsche AG or any of their subsidiaries. All brand and
+> model names are trademarks of their respective owners. The server uses the
+> same undocumented backends as the public websites, so it can break whenever
+> the manufacturers change them. It is intended for personal, low-volume use;
+> requests are throttled and no login or personal data is involved. Prices and
+> data are informational only; the manufacturer's configurator and your dealer
+> are authoritative. Check the manufacturers' terms of use before relying on it.
 
 ## Setup
 
 Requires Node.js 20+.
 
-```sh
-npm install
-npm run build
-```
+### Run straight from GitHub
 
-### Claude Code
+No clone needed; `npx` installs and builds it on first start.
 
 ```sh
-claude mcp add car-configurator -- node /absolute/path/to/car-configurator-mcp/dist/index.js
+claude mcp add car-configurator -- npx -y github:juri1212/car-configurator-mcp
 ```
 
-### Claude Desktop / other clients
+Claude Desktop / other clients:
 
 ```json
 {
   "mcpServers": {
     "car-configurator": {
-      "command": "node",
-      "args": ["/absolute/path/to/car-configurator-mcp/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "github:juri1212/car-configurator-mcp"]
     }
   }
 }
 ```
+
+### From a local checkout
+
+```sh
+git clone https://github.com/juri1212/car-configurator-mcp.git
+cd car-configurator-mcp
+npm install   # also builds dist/
+```
+
+```sh
+claude mcp add car-configurator -- node /absolute/path/to/car-configurator-mcp/dist/index.js
+```
+
+or, for other clients, use `"command": "node"` with
+`"args": ["/absolute/path/to/car-configurator-mcp/dist/index.js"]`.
+
+To pass settings, add them as environment variables, e.g.
+`claude mcp add car-configurator -e BRANDS=porsche -e PORSCHE_LOCALE=en-GB -- …`
+or an `"env": { … }` block in the JSON config.
 
 ## Tools
 
@@ -105,7 +132,7 @@ itself and work as long as VW still offers that model. Porsche links are
 `VW_*` settings apply to Volkswagen cars, `VWN_*` to commercial vehicles.
 `VW_BRAND`, the old name of `BRANDS`, still works.
 
-Only the German market has been tested.
+Only the German market has been tested. Reports from other markets are welcome.
 
 ### Commercial vehicles
 
@@ -140,3 +167,15 @@ npm run build && npm run test:live # end-to-end against the real backends (creat
 ```
 
 Backend notes are in [SPEC.md](SPEC.md).
+
+## Contributing
+
+Issues and pull requests are welcome, especially reports when a backend
+changed and something broke, and testing in other markets. Please run
+`npm run typecheck && npm test` before opening a PR. New backend behaviour
+should come with a recorded fixture in `test/fixtures/` so the tests stay
+offline.
+
+## License
+
+[MIT](LICENSE)

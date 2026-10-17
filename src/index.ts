@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -16,7 +16,7 @@ import { registerCompareTools } from "./tools/compare.js";
 import { registerConfigureTools } from "./tools/configure.js";
 import type { Backend, ToolContext } from "./tools/context.js";
 
-const VERSION = "0.1.0";
+const { version: VERSION } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
 
 export function createServer(backends: Backend[], sessions = new SessionStore()) {
   if (!backends.length) throw new Error("No brand enabled");
