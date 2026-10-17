@@ -34,15 +34,15 @@ describe("brand", () => {
     expect(resolveBrand("vwn", env)).toMatchObject({ host: "www.volkswagen-nutzfahrzeuge.de", tenant: "tn" });
   });
 
-  it("serves both brands unless VW_BRAND picks one", () => {
+  it("serves both brands unless BRANDS picks one", () => {
     expect(resolveBrands({}).map((b) => b.key)).toEqual(["vw", "vwn"]);
-    expect(resolveBrands({ VW_BRAND: "all" }).map((b) => b.key)).toEqual(["vw", "vwn"]);
-    expect(resolveBrands({ VW_BRAND: "VWN" }).map((b) => b.key)).toEqual(["vwn"]);
-    expect(resolveBrands({ VW_BRAND: "vw, vwn" }).map((b) => b.key)).toEqual(["vw", "vwn"]);
+    expect(resolveBrands({ BRANDS: "all" }).map((b) => b.key)).toEqual(["vw", "vwn"]);
+    expect(resolveBrands({ BRANDS: "VWN" }).map((b) => b.key)).toEqual(["vwn"]);
+    expect(resolveBrands({ BRANDS: "vw, vwn" }).map((b) => b.key)).toEqual(["vw", "vwn"]);
   });
 
   it("rejects unknown brands", () => {
-    expect(() => resolveBrands({ VW_BRAND: "audi" })).toThrow(/VW_BRAND/);
+    expect(() => resolveBrands({ BRANDS: "audi" })).toThrow(/BRANDS/);
   });
 
   it("names both sites in server instructions and tools", async () => {
@@ -55,7 +55,7 @@ describe("brand", () => {
   });
 
   it("only offers the enabled brands", async () => {
-    const { client, call } = await connectTestServer([], resolveBrands({ VW_BRAND: "vwn" }));
+    const { client, call } = await connectTestServer([], resolveBrands({ BRANDS: "vwn" }));
     expect(client.getInstructions()).not.toContain("www.volkswagen.de");
     expect((await call("list_models")).every((m: { brand: string }) => m.brand === "vwn")).toBe(true);
     expect((await call("list_models", { brand: "vw" })).error).toBeDefined();

@@ -69,7 +69,7 @@ export function resolveBrand(key: BrandKey = "vw", env: Env = process.env): Bran
   };
 }
 
-/** The Victor brands to serve, out of those VW_BRAND enables (all by default). */
+/** The Victor brands to serve, out of those BRANDS enables (all by default). */
 export function resolveBrands(env: Env = process.env): Brand[] {
   const enabled = enabledBrands(env);
   return BRAND_KEYS.filter((k) => enabled.includes(k)).map((k) => resolveBrand(k, env));

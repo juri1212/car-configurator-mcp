@@ -43,10 +43,12 @@ describe("porsche: formats", () => {
     });
   });
 
-  it("enables Porsche with the other brands unless VW_BRAND says otherwise", () => {
+  it("enables Porsche with the other brands unless BRANDS says otherwise", () => {
     expect(enabledBrands({})).toEqual(["vw", "vwn", "porsche"]);
-    expect(enabledBrands({ VW_BRAND: "porsche, vw" })).toEqual(["vw", "porsche"]);
-    expect(() => enabledBrands({ VW_BRAND: "audi" })).toThrow(/"porsche"/);
+    expect(enabledBrands({ BRANDS: "porsche, vw" })).toEqual(["vw", "porsche"]);
+    expect(() => enabledBrands({ BRANDS: "audi" })).toThrow(/"porsche"/);
+    expect(enabledBrands({ VW_BRAND: "porsche" })).toEqual(["porsche"]);
+    expect(enabledBrands({ BRANDS: "vw", VW_BRAND: "porsche" })).toEqual(["vw"]);
   });
 });
 
